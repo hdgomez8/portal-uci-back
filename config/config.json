@@ -1,0 +1,10 @@
+{
+    "development": {
+      "username": "root",
+      "password": "123456",
+      "database": "gestion_rrhh",
+      "host": "127.0.0.1",
+      "port": 5555,
+      "dialect": "mysql"
+    }
+  }
