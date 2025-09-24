@@ -1,0 +1,9 @@
+﻿# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables
+.env
+
+# Uploads and temporary files
+uploads/*
