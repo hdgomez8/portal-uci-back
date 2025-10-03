@@ -10,8 +10,12 @@ const transporter = nodemailer.createTransport({
   },
   tls: {
     rejectUnauthorized: false,
-    ciphers: 'SSLv3'
-  }
+    minVersion: 'TLSv1.2',
+    ciphers: 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256'
+  },
+  connectionTimeout: 60000, // 60 segundos
+  greetingTimeout: 30000,   // 30 segundos
+  socketTimeout: 60000      // 60 segundos
 });
 
 /**
