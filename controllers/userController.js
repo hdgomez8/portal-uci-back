@@ -10,6 +10,7 @@ const Departamento = require('../models/EstructuraEmpresa/Departamento');
 const Area = require('../models/EstructuraEmpresa/Area');
 const { sendMail } = require('../utils/mailer');
 const { getNuevoUsuarioTemplate } = require('../utils/emailTemplates');
+const db = require('../config/database'); // Importar para transacciones
 
 // Middleware de validación
 exports.validarUsuario = [
@@ -22,19 +23,21 @@ exports.validarUsuario = [
     body('documento').notEmpty().withMessage('El documento es obligatorio')
 ];
 
-// Crear usuario optimizado
+// Crear usuario optimizado con transacciones y envío asíncrono de correos
 const crearUsuario = async (req, res) => {
     const errores = validationResult(req);
     if (!errores.isEmpty()) {
         return res.status(400).json({ errores: errores.array() });
     }
 
+    const t = await db.transaction(); // Iniciar transacción
     try {
         const { nombres, email, documento, fecha_ingreso, tipo_contrato, codigo, rol, departamento, area, jefe_id, oficio } = req.body;
 
         // Verificar si el departamento existe por ID
         let departamentoExistente = await Departamento.findByPk(departamento);
         if (!departamentoExistente) {
+            await t.rollback();
             return res.status(400).json({ message: 'Departamento no encontrado' });
         }
 
@@ -52,7 +55,7 @@ const crearUsuario = async (req, res) => {
                 nombre: area, 
                 departamento_id: departamentoExistente.id, 
                 jefe_id: departamentoExistente.gerente_id // Usar el gerente del departamento automáticamente
-            });
+            }, { transaction: t });
             console.log(`✅ Nueva área creada: ${area} en departamento ${departamentoExistente.nombre}`);
         } else {
             console.log(`✅ Área existente encontrada: ${area} en departamento ${departamentoExistente.nombre}`);
@@ -70,18 +73,19 @@ const crearUsuario = async (req, res) => {
                 codigo,
                 oficio,
                 departamento: departamentoExistente.nombre
-            });
+            }, { transaction: t });
         }
 
         // Asignar el empleado al área en la tabla intermedia empleados_areas
         await EmpleadosAreas.create({
             empleado_id: empleado.id,
             area_id: areaExistente.id
-        });
+        }, { transaction: t });
 
         // Verificar si el usuario ya existe
         const usuarioExistente = await Usuario.findOne({ where: { email } });
         if (usuarioExistente) {
+            await t.rollback();
             return res.status(400).json({ message: 'El usuario ya existe' });
         }
 
@@ -93,36 +97,48 @@ const crearUsuario = async (req, res) => {
             empleado_id: empleado.id,
             email,
             password: hashedPassword
-        });
+        }, { transaction: t });
 
         // Verificar si el rol existe o crearlo
         let rolExistente = await Rol.findOne({ where: { nombre: rol } });
         if (!rolExistente) {
-            rolExistente = await Rol.create({ nombre: rol });
+            rolExistente = await Rol.create({ nombre: rol }, { transaction: t });
         }
 
         // Asignar usuario a su rol en la tabla intermedia usuarios_roles
         await UsuariosRoles.create({
             usuario_id: usuario.id,
             rol_id: rolExistente.id
+        }, { transaction: t });
+
+        // Confirmar transacción PRIMERO - antes de cualquier operación que pueda fallar
+        await t.commit();
+        console.log('✅ Transacción de creación de usuario confirmada exitosamente');
+
+        // Responder al cliente INMEDIATAMENTE después de confirmar la transacción
+        res.status(201).json({ message: 'Usuario creado con éxito', usuario });
+
+        // Enviar correo de forma ASÍNCRONA (no bloquea la respuesta)
+        setImmediate(async () => {
+            try {
+                console.log('📧 Iniciando envío de correo de bienvenida asíncrono...');
+                const emailHTML = getNuevoUsuarioTemplate(empleado, documento);
+                await sendMail(
+                    email,
+                    '🏢 Bienvenido al Portal UCI - Tus Credenciales de Acceso',
+                    emailHTML
+                );
+                console.log('✅ Email de bienvenida enviado exitosamente a:', email);
+            } catch (mailError) {
+                console.error('❌ Error enviando correo de bienvenida asíncrono:', mailError);
+                console.error('❌ Stack trace:', mailError.stack);
+                // No afecta la respuesta al cliente
+            }
         });
 
-        // Enviar notificación por email al nuevo usuario
-        try {
-            const emailHTML = getNuevoUsuarioTemplate(empleado, documento);
-            await sendMail(
-                email,
-                '🏢 Bienvenido al Portal UCI - Tus Credenciales de Acceso',
-                emailHTML
-            );
-            console.log('✅ Email de bienvenida enviado exitosamente a:', email);
-        } catch (mailError) {
-            console.error('❌ Error al enviar email de bienvenida:', mailError);
-            // No fallar la creación del usuario si el email falla
-        }
-
-        res.status(201).json({ message: 'Usuario creado con éxito', usuario });
     } catch (error) {
+        await t.rollback(); // Revertir cambios si hay error
+        console.error("Error al crear el usuario:", error);
         res.status(500).json({ error: error.message });
     }
 };
