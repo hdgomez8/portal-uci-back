@@ -8,7 +8,18 @@ const db = new Sequelize(
   {
     host: process.env.DB_HOST,
     dialect: 'mysql',
-    logging: false
+    logging: console.log, // Habilitar logging para debugging
+    pool: {
+      max: 10,        // Máximo 10 conexiones
+      min: 0,         // Mínimo 0 conexiones
+      acquire: 30000, // Tiempo máximo para obtener conexión (30 segundos)
+      idle: 10000     // Tiempo máximo que una conexión puede estar inactiva (10 segundos)
+    },
+    define: {
+      timestamps: true,
+      underscored: false,
+      freezeTableName: true
+    }
   }
 );
 

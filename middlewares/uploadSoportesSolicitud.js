@@ -11,7 +11,31 @@ const storage = multer.diskStorage({
     }
 });
 
-// Configurar multer
-const upload = multer({ storage });
+// Configurar multer con límites y validaciones
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB máximo por archivo
+    files: 5 // Máximo 5 archivos
+  },
+  fileFilter: (req, file, cb) => {
+    // Tipos de archivo permitidos
+    const allowedTypes = [
+      'application/pdf',
+      'image/jpeg', 
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Tipo de archivo no permitido: ${file.mimetype}. Tipos permitidos: PDF, JPG, PNG, GIF, DOC, DOCX`), false);
+    }
+  }
+});
 
 module.exports = upload;

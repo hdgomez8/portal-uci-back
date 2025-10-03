@@ -111,25 +111,27 @@ const crearSolicitud = async (req, res) => {
 
         const { empleado_id, tipo_solicitud_id, fecha, fecha_permiso, hora, duracion, observaciones } = req.body;
 
-        // Verificar que el usuario no sea jefe de área
-        const empleadoVerificacion = await Empleado.findOne({
-          where: { id: empleado_id },
+        // Verificar que el usuario no sea jefe de área (consulta optimizada)
+        const empleadoVerificacion = await Empleado.findByPk(empleado_id, {
+          attributes: ['id'],
           include: [
             {
               model: Usuario,
               as: 'usuario',
+              attributes: ['id'],
               include: [
                 {
                   model: require('../../models/Rol'),
                   as: 'roles',
-                  attributes: ['nombre']
+                  attributes: ['nombre'],
+                  where: { nombre: 'JEFE AREA' }
                 }
               ]
             }
           ]
         });
 
-        if (empleadoVerificacion?.usuario?.roles?.some(rol => rol.nombre === 'JEFE AREA')) {
+        if (empleadoVerificacion?.usuario?.roles?.length > 0) {
           console.log('❌ Jefe de área intentando crear solicitud de permiso - Acceso denegado');
           return res.status(403).json({
             message: 'Los jefes de área no pueden crear solicitudes de permisos desde la interfaz de gestión. Deben hacerlo desde su cuenta personal de empleado.'
@@ -170,7 +172,11 @@ const crearSolicitud = async (req, res) => {
             console.log("Adjuntos guardados:", adjuntos);
         }
 
-        // Buscar el jefe del área del empleado
+        // Confirmar transacción PRIMERO - antes de cualquier operación que pueda fallar
+        await t.commit();
+        console.log('✅ Transacción confirmada exitosamente');
+
+        // Buscar el jefe del área del empleado DESPUÉS de confirmar la transacción
         const empleado = await Empleado.findByPk(empleado_id, {
           include: [{ association: 'areas', include: [{ association: 'jefe' }] }]
         });
@@ -183,30 +189,40 @@ const crearSolicitud = async (req, res) => {
         if (empleado.areas && empleado.areas.length > 0) {
           jefe = empleado.areas[0].jefe;
         }
-        if (jefe) {
-          // Obtener el email preferido para notificaciones del jefe
-          const emailJefe = await obtenerEmailNotificacion(jefe.id);
-          
-          if (emailJefe) {
-            // Importar las plantillas de correo
-            const { getNuevaSolicitudTemplate } = require('../../utils/emailTemplates');
-            
-            // Generar el HTML del correo con la nueva plantilla
-            const emailHTML = getNuevaSolicitudTemplate(empleado, jefe);
-            
-            await sendMail(
-              emailJefe,
-              'Nueva solicitud de su colaborador',
-              emailHTML
-            );
-          } else {
-            console.log('⚠️ No se encontró email para notificar al jefe:', jefe.nombres);
-          }
-        }
-        // Confirmar transacción SOLO si todo salió bien
-        await t.commit();
 
+        // Responder al cliente INMEDIATAMENTE después de confirmar la transacción
         res.status(201).json({ mensaje: 'Solicitud creada con éxito', solicitud: nuevaSolicitud });
+
+        // Enviar correo de forma ASÍNCRONA (no bloquea la respuesta)
+        if (jefe) {
+          setImmediate(async () => {
+            try {
+              console.log('📧 Iniciando envío de correo asíncrono...');
+              // Obtener el email preferido para notificaciones del jefe
+              const emailJefe = await obtenerEmailNotificacion(jefe.id);
+              
+              if (emailJefe) {
+                // Importar las plantillas de correo
+                const { getNuevaSolicitudTemplate } = require('../../utils/emailTemplates');
+                
+                // Generar el HTML del correo con la nueva plantilla
+                const emailHTML = getNuevaSolicitudTemplate(empleado, jefe);
+                
+                await sendMail(
+                  emailJefe,
+                  'Nueva solicitud de su colaborador',
+                  emailHTML
+                );
+                console.log('✅ Correo enviado exitosamente de forma asíncrona');
+              } else {
+                console.log('⚠️ No se encontró email para notificar al jefe:', jefe.nombres);
+              }
+            } catch (emailError) {
+              console.error('❌ Error enviando correo asíncrono:', emailError);
+              // No afecta la respuesta al cliente
+            }
+          });
+        }
 
     } catch (error) {
         await t.rollback(); // Revertir cambios si hay error

@@ -24,11 +24,32 @@ const app = express();
 
 // Middlewares
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Límite de 10MB para JSON
+app.use(express.urlencoded({ limit: '10mb', extended: true })); // Límite de 10MB para URL-encoded
 
 // Log global de todas las peticiones
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Middleware de timeout para requests largos
+app.use((req, res, next) => {
+  // Configurar timeout de 2 minutos para requests largos
+  req.setTimeout(120000); // 2 minutos
+  res.setTimeout(120000); // 2 minutos
+  
+  // Manejar timeout
+  req.on('timeout', () => {
+    console.error(`⏰ Timeout en request: ${req.method} ${req.originalUrl}`);
+    if (!res.headersSent) {
+      res.status(408).json({ 
+        error: 'Request timeout', 
+        message: 'La solicitud tardó demasiado en procesarse' 
+      });
+    }
+  });
+  
   next();
 });
 
