@@ -1,0 +1,30 @@
+[
+  {
+    "timestamp": "2025-10-04T16:17:07.589Z",
+    "destinatario": "hdgomez0@gmail.com",
+    "asunto": "🧪 Test Métodos Alternativos - Portal UCI",
+    "contenido": "\n        <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n            <h2 style=\"color: #2c3e50;\">🧪 Test de Métodos Alternativos</h2>\n            <div style=\"background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;\">\n                <h3 style=\"color: #495057; margin-top: 0;\">Sistema de Notificaciones</h3>\n                <p><strong>Fecha:</strong> 4/10/2025, 11:17:06 a. m.</p>\n                <p><strong>Método:</strong> Múltiples proveedores con fallback</p>\n            </div>\n            <div style=\"background: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745;\">\n                <p style=\"margin: 0; color: #155724;\"><strong>✅ Test exitoso</strong></p>\n                <p style=\"margin: 5px 0 0 0; color: #155724;\">El sistema de notificaciones alternativo está funcionando.</p>\n            </div>\n        </div>\n    ",
+    "metodo": "logging"
+  },
+  {
+    "timestamp": "2025-10-04T16:17:07.595Z",
+    "destinatario": "hdgomez0@gmail.com",
+    "asunto": "🔔 Nueva Solicitud - Portal UCI",
+    "contenido": "\n        <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n            <h2 style=\"color: #2c3e50;\">🔔 Nueva Solicitud de Vacaciones</h2>\n            <div style=\"background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;\">\n                <h3 style=\"color: #495057; margin-top: 0;\">Información del Empleado</h3>\n                <p><strong>Nombre:</strong> Juan Carlos Pérez García</p>\n                <p><strong>Documento:</strong> 12345678</p>\n                <p><strong>Área:</strong> Recursos Humanos</p>\n            </div>\n            <div style=\"background: #e3f2fd; padding: 15px; border-radius: 5px; border-left: 4px solid #2196f3;\">\n                <p style=\"margin: 0; color: #1565c0;\"><strong>📋 Detalles de la Solicitud</strong></p>\n                <p style=\"margin: 5px 0 0 0; color: #1565c0;\">Fecha: 4/10/2025, 11:17:07 a. m.</p>\n                <p style=\"margin: 5px 0 0 0; color: #1565c0;\">Tipo: Vacaciones</p>\n            </div>\n            <div style=\"background: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745; margin-top: 20px;\">\n                <p style=\"margin: 0; color: #155724;\"><strong>✅ Acción Requerida</strong></p>\n                <p style=\"margin: 5px 0 0 0; color: #155724;\">Por favor revisa y aprueba esta solicitud en el Portal UCI.</p>\n            </div>\n        </div>\n    ",
+    "metodo": "logging"
+  },
+  {
+    "timestamp": "2025-10-04T16:17:07.974Z",
+    "destinatario": "hdgomez0@gmail.com",
+    "asunto": "🏢 Bienvenido al Portal UCI - Tus Credenciales de Acceso",
+    "contenido": "\n        <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n            <h2 style=\"color: #2c3e50;\">🏢 Bienvenido al Portal UCI</h2>\n            <div style=\"background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;\">\n                <h3 style=\"color: #495057; margin-top: 0;\">Información de Acceso</h3>\n                <p><strong>Nombre:</strong> Juan Carlos Pérez García</p>\n                <p><strong>Documento:</strong> 87654321</p>\n                <p><strong>Email:</strong> hdgomez0@gmail.com</p>\n                <p><strong>Contraseña temporal:</strong> 87654321</p>\n            </div>\n            <div style=\"background: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin: 20px 0;\">\n                <p style=\"margin: 0; color: #856404;\"><strong>⚠️ Importante</strong></p>\n                <p style=\"margin: 5px 0 0 0; color: #856404;\">Cambia tu contraseña en el primer inicio de sesión.</p>\n            </div>\n            <div style=\"background: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745;\">\n                <p style=\"margin: 0; color: #155724;\"><strong>🚀 ¡Bienvenido al equipo!</strong></p>\n                <p style=\"margin: 5px 0 0 0; color: #155724;\">Ya puedes acceder al Portal UCI con tus credenciales.</p>\n            </div>\n        </div>\n    ",
+    "metodo": "logging"
+  },
+  {
+    "timestamp": "2025-10-04T16:17:07.985Z",
+    "destinatario": "hdgomez0@gmail.com",
+    "asunto": "📧 Test Correo Simple - Portal UCI",
+    "contenido": "\n                <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n                    <h2 style=\"color: #2c3e50;\">📧 Test Correo Simple</h2>\n                    <div style=\"background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;\">\n                        <h3 style=\"color: #495057; margin-top: 0;\">Sistema Alternativo</h3>\n                        <p><strong>Fecha:</strong> 4/10/2025, 11:17:07 a. m.</p>\n                        <p><strong>Método:</strong> Sistema con fallback automático</p>\n                    </div>\n                    <div style=\"background: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745;\">\n                        <p style=\"margin: 0; color: #155724;\"><strong>✅ Test exitoso</strong></p>\n                        <p style=\"margin: 5px 0 0 0; color: #155724;\">El sistema alternativo está funcionando correctamente.</p>\n                    </div>\n                </div>\n            ",
+    "metodo": "logging"
+  }
+]
