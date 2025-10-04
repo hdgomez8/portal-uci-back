@@ -18,6 +18,7 @@ const cambioTurnoRoutes = require('./routes/cambioTurnoRoutes');
 const cesantiasRoutes = require('./routes/cesantiasRoutes');
 const vacacionesRoutes = require('./routes/vacacionesRoutes');
 const tipoSolicitudRoutes = require('./routes/tipoSolicitudRoutes');
+const diagnosticoRoutes = require('./routes/diagnosticoRoutes');
 const path = require("path");
 
 const app = express();
@@ -69,9 +70,11 @@ app.use('/api/cambio-turno', cambioTurnoRoutes);
 app.use('/api/cesantias', cesantiasRoutes);
 app.use('/api/vacaciones', vacacionesRoutes);
 app.use('/api/tipos-solicitud', tipoSolicitudRoutes);
+app.use('/api/diagnostico', diagnosticoRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/pdfs", express.static(path.join(__dirname, "pdfs")));
 app.use("/firmas", express.static(path.join(__dirname, "firmas")));
+app.use("/public", express.static(path.join(__dirname, "public")));
 
 // Sincronizar la base de datos
 (async () => {

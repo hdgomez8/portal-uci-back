@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico de Correos - Portal UCI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+        }
+
+        .status {
+            padding: 20px 30px;
+            background: #e9ecef;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .status-item {
+            display: inline-block;
+            margin-right: 30px;
+            font-weight: 600;
+        }
+
+        .status-value {
+            color: #28a745;
+        }
+
+        .status-value.error {
+            color: #dc3545;
+        }
+
+        .status-value.warning {
+            color: #ffc107;
+        }
+
+        .pasos-container {
+            padding: 30px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .paso {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #dee2e6;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+
+        .paso.completado {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+
+        .paso.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .paso.ejecutando {
+            border-left-color: #007bff;
+            background: #cce7ff;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .paso-icon {
+            font-size: 20px;
+            margin-right: 15px;
+            width: 30px;
+            text-align: center;
+        }
+
+        .paso-content {
+            flex: 1;
+        }
+
+        .paso-mensaje {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .paso-timestamp {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .categoria {
+            display: inline-block;
+            background: #6c757d;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+
+        .categoria.sistema { background: #17a2b8; }
+        .categoria.configuracion { background: #6f42c1; }
+        .categoria.dns { background: #fd7e14; }
+        .categoria.puerto { background: #20c997; }
+        .categoria.smtp { background: #007bff; }
+        .categoria.email { background: #28a745; }
+        .categoria.final { background: #28a745; }
+        .categoria.error { background: #dc3545; }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Diagnóstico de Correos</h1>
+            <p>Monitoreo en tiempo real del sistema de correos del Portal UCI</p>
+        </div>
+
+        <div class="controls">
+            <button id="btnEjecutar" class="btn">🚀 Ejecutar Diagnóstico</button>
+            <button id="btnReset" class="btn btn-danger">🔄 Resetear Estado</button>
+            <button id="btnAutoRefresh" class="btn">🔄 Auto Actualizar</button>
+        </div>
+
+        <div class="status">
+            <div class="status-item">
+                Estado: <span id="estado" class="status-value">Inactivo</span>
+            </div>
+            <div class="status-item">
+                Pasos: <span id="pasosCompletados" class="status-value">0</span> / <span id="totalPasos" class="status-value">6</span>
+            </div>
+            <div class="status-item">
+                Última actualización: <span id="ultimaActualizacion" class="status-value">-</span>
+            </div>
+        </div>
+
+        <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+        </div>
+
+        <div class="pasos-container">
+            <div id="pasosList" class="loading">
+                <div class="spinner"></div>
+                <p>Presiona "Ejecutar Diagnóstico" para comenzar</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let autoRefreshInterval = null;
+        let isExecuting = false;
+
+        const btnEjecutar = document.getElementById('btnEjecutar');
+        const btnReset = document.getElementById('btnReset');
+        const btnAutoRefresh = document.getElementById('btnAutoRefresh');
+        const estado = document.getElementById('estado');
+        const pasosCompletados = document.getElementById('pasosCompletados');
+        const totalPasos = document.getElementById('totalPasos');
+        const ultimaActualizacion = document.getElementById('ultimaActualizacion');
+        const progressFill = document.getElementById('progressFill');
+        const pasosList = document.getElementById('pasosList');
+
+        // Función para actualizar el estado
+        async function actualizarEstado() {
+            try {
+                const response = await fetch('/api/diagnostico/estado');
+                const data = await response.json();
+                
+                // Actualizar estado
+                estado.textContent = data.ejecutando ? 'Ejecutando' : (data.resultado === 'exitoso' ? 'Completado' : (data.resultado === 'error' ? 'Error' : 'Inactivo'));
+                estado.className = 'status-value ' + (data.ejecutando ? 'warning' : (data.resultado === 'exitoso' ? '' : (data.resultado === 'error' ? 'error' : '')));
+                
+                // Actualizar contadores
+                const pasosCompletadosCount = data.pasos.filter(p => p.estado === 'completado').length;
+                pasosCompletados.textContent = pasosCompletadosCount;
+                totalPasos.textContent = data.totalPasos || 6;
+                
+                // Actualizar progreso
+                const progress = (pasosCompletadosCount / (data.totalPasos || 6)) * 100;
+                progressFill.style.width = progress + '%';
+                
+                // Actualizar timestamp
+                ultimaActualizacion.textContent = data.timestamp ? new Date(data.timestamp).toLocaleString() : '-';
+                
+                // Actualizar lista de pasos
+                actualizarListaPasos(data.pasos);
+                
+                // Actualizar botones
+                btnEjecutar.disabled = data.ejecutando;
+                isExecuting = data.ejecutando;
+                
+            } catch (error) {
+                console.error('Error actualizando estado:', error);
+                estado.textContent = 'Error';
+                estado.className = 'status-value error';
+            }
+        }
+
+        // Función para actualizar la lista de pasos
+        function actualizarListaPasos(pasos) {
+            if (pasos.length === 0) {
+                pasosList.innerHTML = '<div class="loading"><div class="spinner"></div><p>Presiona "Ejecutar Diagnóstico" para comenzar</p></div>';
+                return;
+            }
+
+            pasosList.innerHTML = pasos.map(paso => `
+                <div class="paso ${paso.estado}">
+                    <div class="paso-icon">
+                        ${paso.estado === 'completado' ? '✅' : 
+                          paso.estado === 'error' ? '❌' : 
+                          paso.estado === 'ejecutando' ? '⏳' : '⏸️'}
+                    </div>
+                    <div class="paso-content">
+                        <div class="paso-mensaje">
+                            <span class="categoria ${paso.categoria}">${paso.categoria.toUpperCase()}</span>
+                            ${paso.mensaje}
+                        </div>
+                        <div class="paso-timestamp">${new Date(paso.timestamp).toLocaleString()}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Scroll al final
+            pasosList.scrollTop = pasosList.scrollHeight;
+        }
+
+        // Función para ejecutar diagnóstico
+        async function ejecutarDiagnostico() {
+            try {
+                const response = await fetch('/api/diagnostico/ejecutar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    console.log('Diagnóstico iniciado:', data.mensaje);
+                    // El estado se actualizará automáticamente
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error ejecutando diagnóstico:', error);
+                alert('Error ejecutando diagnóstico: ' + error.message);
+            }
+        }
+
+        // Función para resetear estado
+        async function resetearEstado() {
+            try {
+                const response = await fetch('/api/diagnostico/reset', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                console.log('Estado reseteado:', data.mensaje);
+                await actualizarEstado();
+            } catch (error) {
+                console.error('Error reseteando estado:', error);
+                alert('Error reseteando estado: ' + error.message);
+            }
+        }
+
+        // Función para toggle auto refresh
+        function toggleAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                btnAutoRefresh.textContent = '🔄 Auto Actualizar';
+                btnAutoRefresh.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+            } else {
+                autoRefreshInterval = setInterval(actualizarEstado, 1000);
+                btnAutoRefresh.textContent = '⏹️ Detener Auto';
+                btnAutoRefresh.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
+            }
+        }
+
+        // Event listeners
+        btnEjecutar.addEventListener('click', ejecutarDiagnostico);
+        btnReset.addEventListener('click', resetearEstado);
+        btnAutoRefresh.addEventListener('click', toggleAutoRefresh);
+
+        // Cargar estado inicial
+        actualizarEstado();
+
+        // Auto refresh cada 2 segundos si está ejecutando
+        setInterval(() => {
+            if (isExecuting) {
+                actualizarEstado();
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
