@@ -84,6 +84,24 @@ app.use("/firmas", express.static(path.join(__dirname, "firmas")));
 })();
 
 const PORT = process.env.PORT || 5555;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
+  
+  // Ejecutar verificación de configuración de correos al iniciar
+  try {
+    const { verificarConfiguracionCorreos } = require('./scripts/verificacion-inicio');
+    console.log('🔍 Ejecutando verificación de configuración de correos...');
+    
+    // Ejecutar en segundo plano para no bloquear el inicio del servidor
+    setImmediate(async () => {
+      try {
+        await verificarConfiguracionCorreos();
+        console.log('✅ Verificación de configuración completada');
+      } catch (error) {
+        console.error('❌ Error en verificación de configuración:', error.message);
+      }
+    });
+  } catch (error) {
+    console.error('❌ No se pudo cargar el script de verificación:', error.message);
+  }
 });
