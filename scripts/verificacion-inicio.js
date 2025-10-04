@@ -27,16 +27,34 @@ async function verificarConfiguracionCorreos() {
             }
         };
 
-        // Verificar variables de entorno
+        // Leer configuración real del mailer.js
+        const mailerPath = path.join(__dirname, '../utils/mailer.js');
+        const mailerContent = fs.readFileSync(mailerPath, 'utf8');
+        
+        // Extraer configuración del mailer.js con regex más robusto
+        const userMatch = mailerContent.match(/user:\s*process\.env\.EMAIL_USER\s*\|\|\s*['"`]([^'"`]+)['"`]/);
+        const passMatch = mailerContent.match(/pass:\s*process\.env\.EMAIL_PASS\s*\|\|\s*['"`]([^'"`]+)['"`]/);
+        
+        // Extraer configuración TLS del mailer.js
+        const tlsMatch = mailerContent.match(/tls:\s*\{[^}]+minVersion:\s*['"`]([^'"`]+)['"`][^}]*\}/s);
+        const ciphersMatch = mailerContent.match(/ciphers:\s*['"`]([^'"`]+)['"`]/);
+        
         const configEmail = {
             host: 'smtp.gmail.com',
             port: 587,
             secure: false,
-            user: process.env.EMAIL_USER || 'NO_CONFIGURADO',
-            pass: process.env.EMAIL_PASS ? '***CONFIGURADO***' : 'NO_CONFIGURADO',
+            user: userMatch ? userMatch[1] : 'NO_ENCONTRADO',
+            pass: passMatch ? '***CONFIGURADO***' : 'NO_ENCONTRADO',
             tls: {
-                minVersion: 'TLSv1.2',
-                ciphers: 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256'
+                minVersion: tlsMatch ? tlsMatch[1] : 'TLSv1.2',
+                ciphers: ciphersMatch ? ciphersMatch[1] : 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256'
+            },
+            // Información adicional extraída del mailer
+            configuracionReal: {
+                usuarioEncontrado: !!userMatch,
+                contraseñaEncontrada: !!passMatch,
+                tlsEncontrado: !!tlsMatch,
+                ciphersEncontrados: !!ciphersMatch
             }
         };
 
@@ -51,9 +69,9 @@ async function verificarConfiguracionCorreos() {
         // Generar HTML del correo de verificación
         const emailHTML = generarHTMLVerificacion(infoSistema, configEmail, archivosConfig);
 
-        // Enviar correo de verificación
+        // Enviar correo de verificación usando la configuración real
         await sendMail(
-            process.env.EMAIL_USER || 'hdgomez0@gmail.com', // Email de destino
+            configEmail.user, // Email de destino (el mismo configurado en mailer.js)
             '🔧 Verificación de Configuración - Portal UCI Iniciado',
             emailHTML
         );
@@ -65,11 +83,17 @@ async function verificarConfiguracionCorreos() {
         console.error('❌ Error en verificación de configuración:', error);
         console.error('❌ Stack trace:', error.stack);
         
-        // Intentar enviar correo de error
+        // Intentar enviar correo de error usando la configuración real
         try {
+            // Leer configuración del mailer para el correo de error
+            const mailerPath = path.join(__dirname, '../utils/mailer.js');
+            const mailerContent = fs.readFileSync(mailerPath, 'utf8');
+            const userMatch = mailerContent.match(/user:\s*process\.env\.EMAIL_USER\s*\|\|\s*['"`]([^'"`]+)['"`]/);
+            const emailDestino = userMatch ? userMatch[1] : 'hdgomez0@gmail.com';
+            
             const errorHTML = generarHTMLError(error, infoSistema);
             await sendMail(
-                process.env.EMAIL_USER || 'hdgomez0@gmail.com',
+                emailDestino,
                 '🚨 Error en Verificación de Configuración - Portal UCI',
                 errorHTML
             );
@@ -142,26 +166,35 @@ function generarHTMLVerificacion(infoSistema, configEmail, archivosConfig) {
             </div>
 
             <div class="config-section">
-                <h3>📧 Configuración de Correos</h3>
+                <h3>📧 Configuración de Correos (Extraída de mailer.js)</h3>
                 <div class="config-item">
                     <span class="config-label">Servidor SMTP:</span>
                     <span class="config-value">${configEmail.host}:${configEmail.port}</span>
                 </div>
                 <div class="config-item">
                     <span class="config-label">Usuario:</span>
-                    <span class="config-value">${configEmail.user}</span>
+                    <span class="config-value ${configEmail.configuracionReal.usuarioEncontrado ? 'success' : 'error'}">${configEmail.user}</span>
                 </div>
                 <div class="config-item">
                     <span class="config-label">Contraseña:</span>
-                    <span class="config-value">${configEmail.pass}</span>
+                    <span class="config-value ${configEmail.configuracionReal.contraseñaEncontrada ? 'success' : 'error'}">${configEmail.pass}</span>
                 </div>
                 <div class="config-item">
                     <span class="config-label">Protocolo TLS:</span>
-                    <span class="config-value success">${configEmail.tls.minVersion}</span>
+                    <span class="config-value ${configEmail.configuracionReal.tlsEncontrado ? 'success' : 'warning'}">${configEmail.tls.minVersion}</span>
                 </div>
                 <div class="config-item">
                     <span class="config-label">Cifrados:</span>
-                    <span class="config-value success">TLS_AES_256_GCM_SHA384, TLS_CHACHA20_POLY1305_SHA256, TLS_AES_128_GCM_SHA256</span>
+                    <span class="config-value ${configEmail.configuracionReal.ciphersEncontrados ? 'success' : 'warning'}">${configEmail.tls.ciphers}</span>
+                </div>
+                <div class="config-item">
+                    <span class="config-label">Estado de Extracción:</span>
+                    <span class="config-value">
+                        ${configEmail.configuracionReal.usuarioEncontrado ? '✅' : '❌'} Usuario | 
+                        ${configEmail.configuracionReal.contraseñaEncontrada ? '✅' : '❌'} Contraseña | 
+                        ${configEmail.configuracionReal.tlsEncontrado ? '✅' : '⚠️'} TLS | 
+                        ${configEmail.configuracionReal.ciphersEncontrados ? '✅' : '⚠️'} Cifrados
+                    </span>
                 </div>
             </div>
 
