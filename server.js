@@ -87,21 +87,27 @@ const PORT = process.env.PORT || 5555;
 app.listen(PORT, async () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
   
-  // Ejecutar verificación de configuración de correos al iniciar
+  // Ejecutar diagnóstico de correos al iniciar
   try {
-    const { verificarConfiguracionCorreos } = require('./scripts/verificacion-inicio');
-    console.log('🔍 Ejecutando verificación de configuración de correos...');
+    console.log('🔍 Ejecutando diagnóstico de correos...');
     
     // Ejecutar en segundo plano para no bloquear el inicio del servidor
     setImmediate(async () => {
       try {
-        await verificarConfiguracionCorreos();
-        console.log('✅ Verificación de configuración completada');
+        const { diagnosticoInicio } = require('./scripts/diagnostico-inicio');
+        const resultado = await diagnosticoInicio();
+        
+        if (resultado) {
+          console.log('✅ Sistema de correos funcionando correctamente');
+        } else {
+          console.log('⚠️ Problemas detectados en el sistema de correos');
+          console.log('💡 Ejecutar: node scripts/diagnostico-completo.js para más detalles');
+        }
       } catch (error) {
-        console.error('❌ Error en verificación de configuración:', error.message);
+        console.error('❌ Error en diagnóstico de correos:', error.message);
       }
     });
   } catch (error) {
-    console.error('❌ No se pudo cargar el script de verificación:', error.message);
+    console.error('❌ No se pudo cargar el script de diagnóstico:', error.message);
   }
 });
