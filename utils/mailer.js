@@ -23,67 +23,67 @@ const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
  * @param {string} [attachmentPath] - Ruta absoluta del archivo a adjuntar (opcional)
  */
 const sendMail = async (to, subject, html, attachmentPath) => {
-  console.log('📧 Iniciando envío de correo con Gmail API a:', to);
-  console.log('📧 Asunto:', subject);
-  console.log('📧 Adjunto:', attachmentPath || 'Ninguno');
-  
-  try {
-    console.log('🔧 Enviando con Gmail API...');
+    console.log('📧 Iniciando envío de correo con Gmail API a:', to);
+    console.log('📧 Asunto:', subject);
+    console.log('📧 Adjunto:', attachmentPath || 'Ninguno');
     
-    // Crear el mensaje en formato MIME
-    const message = {
-      to: to,
-      from: `Portal UCI <hdgomez0@gmail.com>`,
-      subject: subject,
-      html: html
-    };
-    
-    // Si hay adjunto, agregarlo
-    if (attachmentPath) {
-      const fs = require('fs');
-      const path = require('path');
-      
-      if (!fs.existsSync(attachmentPath)) {
-        throw new Error(`El archivo adjunto no existe: ${attachmentPath}`);
-      }
-      
-      const fileBuffer = fs.readFileSync(attachmentPath);
-      const base64Content = fileBuffer.toString('base64');
-      
-      message.attachments = [{
-        filename: path.basename(attachmentPath),
-        content: base64Content,
-        type: 'application/pdf'
-      }];
-      
-      console.log('📎 Archivo adjunto verificado:', attachmentPath);
+    try {
+        console.log('🔧 Enviando con Gmail API...');
+        
+        // Crear el mensaje en formato MIME
+        const message = {
+            to: to,
+            from: `Portal UCI <hdgomez0@gmail.com>`,
+            subject: subject,
+            html: html
+        };
+        
+        // Si hay adjunto, agregarlo
+        if (attachmentPath) {
+            const fs = require('fs');
+            const path = require('path');
+            
+            if (!fs.existsSync(attachmentPath)) {
+                throw new Error(`El archivo adjunto no existe: ${attachmentPath}`);
+            }
+            
+            const fileBuffer = fs.readFileSync(attachmentPath);
+            const base64Content = fileBuffer.toString('base64');
+            
+            message.attachments = [{
+                filename: path.basename(attachmentPath),
+                content: base64Content,
+                type: 'application/pdf'
+            }];
+            
+            console.log('📎 Archivo adjunto verificado:', attachmentPath);
+        }
+        
+        // Crear el mensaje MIME
+        const mimeMessage = createMimeMessage(message);
+        
+        // Enviar con Gmail API
+        const result = await gmail.users.messages.send({
+            userId: 'me',
+            requestBody: {
+                raw: mimeMessage
+            }
+        });
+        
+        console.log('✅ Correo enviado exitosamente con Gmail API a:', to);
+        console.log('📧 Message ID:', result.data.id);
+        return {
+            messageId: result.data.id,
+            accepted: [to],
+            rejected: [],
+            response: result.data,
+            provider: 'Gmail API'
+        };
+        
+    } catch (error) {
+        console.error('❌ Error con Gmail API:', error.message);
+        throw new Error(`Error enviando correo con Gmail API: ${error.message}`);
     }
-    
-    // Crear el mensaje MIME
-    const mimeMessage = createMimeMessage(message);
-    
-    // Enviar con Gmail API
-    const result = await gmail.users.messages.send({
-      userId: 'me',
-      requestBody: {
-        raw: mimeMessage
-      }
-    });
-    
-    console.log('✅ Correo enviado exitosamente con Gmail API a:', to);
-    console.log('📧 Message ID:', result.data.id);
-    return {
-      messageId: result.data.id,
-      accepted: [to],
-      rejected: [],
-      response: result.data,
-      provider: 'Gmail API'
-    };
-    
-  } catch (error) {
-    console.error('❌ Error con Gmail API:', error.message);
-    throw new Error(`Error enviando correo con Gmail API: ${error.message}`);
-  }
 };
 
 // Función para crear mensaje MIME
