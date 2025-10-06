@@ -13,7 +13,7 @@
             min-height: 100vh;
         }
         .container {
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             background: white;
             border-radius: 15px;
@@ -115,6 +115,63 @@
             padding: 15px;
             margin: 20px 0;
         }
+        .logs-container {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .log-info { background-color: #e3f2fd; color: #1565c0; }
+        .log-success { background-color: #e8f5e8; color: #2e7d32; }
+        .log-error { background-color: #ffebee; color: #c62828; }
+        .log-warning { background-color: #fff8e1; color: #f57c00; }
+        .variables-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        .variables-table th, .variables-table td {
+            border: 1px solid #dee2e6;
+            padding: 8px;
+            text-align: left;
+        }
+        .variables-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .configurada { color: #28a745; font-weight: bold; }
+        .faltante { color: #dc3545; font-weight: bold; }
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #dee2e6;
+            margin: 20px 0;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .tab.active {
+            border-bottom-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -142,16 +199,42 @@
                 <p><strong>Estado:</strong> <span id="connectionStatus">Verificando...</span></p>
             </div>
 
-            <div class="steps" id="stepsContainer">
-                <div class="step">
-                    <span class="step-icon">🔧</span>
-                    <span>Preparando diagnóstico...</span>
+            <div class="tabs">
+                <div class="tab active" onclick="cambiarTab('diagnostico')">🔍 Diagnóstico</div>
+                <div class="tab" onclick="cambiarTab('logs')">📋 Logs</div>
+                <div class="tab" onclick="cambiarTab('variables')">🔧 Variables</div>
+            </div>
+
+            <div id="tab-diagnostico" class="tab-content active">
+                <div class="steps" id="stepsContainer">
+                    <div class="step">
+                        <span class="step-icon">🔧</span>
+                        <span>Preparando diagnóstico...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-logs" class="tab-content">
+                <div class="logs-container" id="logsContainer">
+                    <p>Haz clic en "Ver Logs" para obtener los logs del diagnóstico</p>
+                </div>
+            </div>
+
+            <div id="tab-variables" class="tab-content">
+                <div id="variablesContainer">
+                    <p>Haz clic en "Ver Variables" para verificar la configuración</p>
                 </div>
             </div>
 
             <div style="text-align: center; margin-top: 30px;">
                 <button class="btn" id="btnEjecutar" onclick="ejecutarDiagnostico()">
                     🚀 Ejecutar Diagnóstico
+                </button>
+                <button class="btn" onclick="obtenerLogs()">
+                    📋 Ver Logs
+                </button>
+                <button class="btn" onclick="obtenerVariables()">
+                    🔧 Ver Variables
                 </button>
                 <button class="btn" id="btnReset" onclick="resetearDiagnostico()">
                     🔄 Resetear
@@ -164,6 +247,20 @@
         let diagnosticoEnProgreso = false;
         let pasos = [];
 
+        function cambiarTab(tabName) {
+            // Ocultar todos los tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Mostrar tab seleccionado
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            event.target.classList.add('active');
+        }
+
         async function ejecutarDiagnostico() {
             if (diagnosticoEnProgreso) return;
             
@@ -172,10 +269,31 @@
             document.getElementById('btnReset').disabled = true;
             
             try {
-                console.log('🚀 Iniciando diagnóstico...');
+                console.log('🚀 Ejecutando diagnóstico real...');
                 
-                // Simular pasos del diagnóstico
-                await simularDiagnostico();
+                const response = await fetch('/api/diagnostico/ejecutar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    actualizarEstado('success', '✅ Diagnóstico completado exitosamente');
+                } else if (data.status === 'warning') {
+                    actualizarEstado('warning', '⚠️ Diagnóstico completado con advertencias');
+                } else {
+                    actualizarEstado('error', '❌ Error en diagnóstico');
+                }
+                
+                // Mostrar resultado en el tab de diagnóstico
+                const stepsContainer = document.getElementById('stepsContainer');
+                stepsContainer.innerHTML = `
+                    <div class="step ${data.resultado ? 'completed' : 'error'}">
+                        <span class="step-icon">${data.resultado ? '✅' : '❌'}</span>
+                        <span>Diagnóstico: ${data.message}</span>
+                    </div>
+                `;
                 
             } catch (error) {
                 console.error('❌ Error en diagnóstico:', error);
@@ -187,66 +305,66 @@
             }
         }
 
-        async function simularDiagnostico() {
-            const pasosDiagnostico = [
-                { id: 'env', descripcion: 'Verificando variables de entorno...', duracion: 1000 },
-                { id: 'conectividad', descripcion: 'Verificando conectividad a Gmail API...', duracion: 1500 },
-                { id: 'puerto', descripcion: 'Verificando puerto 443 (HTTPS)...', duracion: 2000 },
-                { id: 'email', descripcion: 'Probando envío de correo...', duracion: 3000 }
-            ];
-
-            let progreso = 0;
-            const totalPasos = pasosDiagnostico.length;
-
-            for (let i = 0; i < pasosDiagnostico.length; i++) {
-                const paso = pasosDiagnostico[i];
+        async function obtenerLogs() {
+            try {
+                const response = await fetch('/api/diagnostico/logs');
+                const data = await response.json();
                 
-                // Agregar paso
-                agregarPaso(paso.id, paso.descripcion, 'executing');
+                let logsHtml = '';
+                data.logs.forEach(log => {
+                    const levelClass = `log-${log.level}`;
+                    logsHtml += `
+                        <div class="log-entry ${levelClass}">
+                            <strong>[${new Date(log.timestamp).toLocaleTimeString()}]</strong> ${log.message}
+                        </div>
+                    `;
+                });
                 
-                // Simular duración
-                await new Promise(resolve => setTimeout(resolve, paso.duracion));
+                document.getElementById('logsContainer').innerHTML = logsHtml;
                 
-                // Completar paso
-                const exito = Math.random() > 0.1; // 90% de éxito
-                actualizarPaso(paso.id, exito ? 'completed' : 'error');
-                
-                // Actualizar progreso
-                progreso = Math.round(((i + 1) / totalPasos) * 100);
-                actualizarProgreso(progreso);
-                
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
-
-            // Resultado final
-            const pasosCompletados = document.querySelectorAll('.step.completed').length;
-            const pasosConError = document.querySelectorAll('.step.error').length;
-            
-            if (pasosConError === 0) {
-                actualizarEstado('success', '¡Diagnóstico completado exitosamente!');
-            } else {
-                actualizarEstado('warning', `Diagnóstico completado con ${pasosConError} errores`);
+            } catch (error) {
+                document.getElementById('logsContainer').innerHTML = `<p>Error obteniendo logs: ${error.message}</p>`;
             }
         }
 
-        function agregarPaso(id, descripcion, estado) {
-            const stepsContainer = document.getElementById('stepsContainer');
-            const pasoElement = document.createElement('div');
-            pasoElement.className = `step ${estado}`;
-            pasoElement.id = `paso-${id}`;
-            pasoElement.innerHTML = `
-                <span class="step-icon">${estado === 'completed' ? '✅' : estado === 'error' ? '❌' : '🔧'}</span>
-                <span>${descripcion}</span>
-            `;
-            stepsContainer.appendChild(pasoElement);
-        }
-
-        function actualizarPaso(id, estado) {
-            const pasoElement = document.getElementById(`paso-${id}`);
-            if (pasoElement) {
-                pasoElement.className = `step ${estado}`;
-                const icono = pasoElement.querySelector('.step-icon');
-                icono.textContent = estado === 'completed' ? '✅' : estado === 'error' ? '❌' : '🔧';
+        async function obtenerVariables() {
+            try {
+                const response = await fetch('/api/diagnostico/logs');
+                const data = await response.json();
+                
+                let variablesHtml = '';
+                if (data.variables) {
+                    variablesHtml = `
+                        <h3>🔧 Variables de Entorno</h3>
+                        <p><strong>Configuradas:</strong> ${data.variables.configuradas}/${data.variables.total}</p>
+                        <table class="variables-table">
+                            <thead>
+                                <tr>
+                                    <th>Variable</th>
+                                    <th>Estado</th>
+                                    <th>Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    data.variables.detalles.forEach(variable => {
+                        const estadoClass = variable.configurada ? 'configurada' : 'faltante';
+                        const estadoText = variable.configurada ? '✅ CONFIGURADA' : '❌ FALTANTE';
+                        variablesHtml += `
+                            <tr>
+                                <td><strong>${variable.variable}</strong></td>
+                                <td class="${estadoClass}">${estadoText}</td>
+                                <td>${variable.valor}</td>
+                            </tr>
+                        `;
+                    });
+                    variablesHtml += '</tbody></table>';
+                }
+                
+                document.getElementById('variablesContainer').innerHTML = variablesHtml;
+                
+            } catch (error) {
+                document.getElementById('variablesContainer').innerHTML = `<p>Error obteniendo variables: ${error.message}</p>`;
             }
         }
 
