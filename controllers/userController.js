@@ -116,7 +116,21 @@ const crearUsuario = async (req, res) => {
         console.log('✅ Transacción de creación de usuario confirmada exitosamente');
 
         // Responder al cliente INMEDIATAMENTE después de confirmar la transacción
-        res.status(201).json({ message: 'Usuario creado con éxito', usuario });
+        res.status(201).json({ 
+            message: 'Usuario creado con éxito', 
+            usuario: {
+                id: usuario.id,
+                email: usuario.email,
+                empleado_id: usuario.empleado_id
+            },
+            empleado: {
+                id: empleado.id,
+                nombres: empleado.nombres,
+                apellidos: empleado.apellidos || '',
+                documento: empleado.documento,
+                email: empleado.email
+            }
+        });
 
         // Enviar correo de forma ASÍNCRONA (no bloquea la respuesta)
         setImmediate(async () => {

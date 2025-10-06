@@ -116,19 +116,19 @@ async function ejecutarDiagnosticoPasoAPaso() {
         agregarPaso('configuracion', `Usuario: ${emailUser}`, 'completado');
         agregarPaso('configuracion', 'Contraseña: ***CONFIGURADA***', 'completado');
 
-        // Paso 3: Verificación DNS
-        agregarPaso('dns', 'Verificando resolución DNS...', 'ejecutando');
+        // Paso 3: Verificación DNS Resend
+        agregarPaso('dns', 'Verificando resolución DNS de Resend...', 'ejecutando');
         
         try {
-            const dnsResult = await dnsLookup('smtp.gmail.com');
-            agregarPaso('dns', `DNS resuelto: ${dnsResult.address}`, 'completado');
+            const dnsResult = await dnsLookup('api.resend.com');
+            agregarPaso('dns', `DNS Resend resuelto: ${dnsResult.address}`, 'completado');
         } catch (dnsError) {
-            agregarPaso('dns', `Error DNS: ${dnsError.message}`, 'error');
+            agregarPaso('dns', `Error DNS Resend: ${dnsError.message}`, 'error');
             throw dnsError;
         }
 
-        // Paso 4: Verificación puerto 587
-        agregarPaso('puerto', 'Verificando conectividad al puerto 587...', 'ejecutando');
+        // Paso 4: Verificación puerto 443 (HTTPS)
+        agregarPaso('puerto', 'Verificando conectividad al puerto 443...', 'ejecutando');
         
         try {
             await new Promise((resolve, reject) => {
@@ -136,66 +136,41 @@ async function ejecutarDiagnosticoPasoAPaso() {
                 socket.setTimeout(5000);
                 
                 socket.on('connect', () => {
-                    agregarPaso('puerto', 'Puerto 587 accesible', 'completado');
+                    agregarPaso('puerto', 'Puerto 443 accesible', 'completado');
                     socket.destroy();
                     resolve();
                 });
                 
                 socket.on('timeout', () => {
-                    agregarPaso('puerto', 'Timeout puerto 587', 'error');
+                    agregarPaso('puerto', 'Timeout puerto 443', 'error');
                     socket.destroy();
                     reject(new Error('Timeout'));
                 });
                 
                 socket.on('error', (error) => {
-                    agregarPaso('puerto', `Error puerto 587: ${error.message}`, 'error');
+                    agregarPaso('puerto', `Error puerto 443: ${error.message}`, 'error');
                     socket.destroy();
                     reject(error);
                 });
                 
-                socket.connect(587, 'smtp.gmail.com');
+                socket.connect(443, 'api.resend.com');
             });
         } catch (error) {
             throw error;
         }
 
-        // Paso 5: Verificación SMTP
-        agregarPaso('smtp', 'Verificando conexión SMTP...', 'ejecutando');
+        // Paso 5: Verificación API Resend
+        agregarPaso('api', 'Verificando API de Resend...', 'ejecutando');
         
-        const config = {
-            host: 'smtp.gmail.com',
-            port: 587,
-            secure: false,
-            auth: {
-                user: emailUser,
-                pass: emailPass
-            },
-            tls: {
-                rejectUnauthorized: false,
-                minVersion: 'TLSv1.2',
-                ciphers: 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256'
-            },
-            connectionTimeout: 30000,
-            greetingTimeout: 15000,
-            socketTimeout: 30000
-        };
+        const resendApiKey = 're_jQYP7ZXu_GRSKEouf8kMtvgNvYMj47A9D';
+        const fromEmail = 'Portal UCI <noreply@resend.dev>';
         
-        agregarPaso('smtp', `Host: ${config.host}:${config.port}`, 'completado');
-        agregarPaso('smtp', `Usuario: ${config.auth.user}`, 'completado');
-        agregarPaso('smtp', 'Contraseña: ***CONFIGURADA***', 'completado');
-        
-        const transporter = nodemailer.createTransport(config);
-        
-        try {
-            await transporter.verify();
-            agregarPaso('smtp', 'Conexión SMTP verificada exitosamente', 'completado');
-        } catch (verifyError) {
-            agregarPaso('smtp', `Error SMTP: ${verifyError.code} - ${verifyError.message}`, 'error');
-            throw verifyError;
-        }
+        agregarPaso('api', `API Key: ${resendApiKey.substring(0, 10)}...`, 'completado');
+        agregarPaso('api', `From: ${fromEmail}`, 'completado');
+        agregarPaso('api', 'Endpoint: https://api.resend.com/emails', 'completado');
 
-        // Paso 6: Envío de correo de prueba
-        agregarPaso('email', 'Enviando correo de prueba...', 'ejecutando');
+        // Paso 6: Envío de correo de prueba con Resend
+        agregarPaso('email', 'Enviando correo de prueba con Resend...', 'ejecutando');
         
         const emailHTML = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -211,25 +186,68 @@ async function ejecutarDiagnosticoPasoAPaso() {
                 </div>
                 <div style="background: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745;">
                     <p style="margin: 0; color: #155724;"><strong>✅ Diagnóstico completado exitosamente</strong></p>
-                    <p style="margin: 5px 0 0 0; color: #155724;">El sistema de correos está funcionando correctamente.</p>
+                    <p style="margin: 5px 0 0 0; color: #155724;">El sistema de correos con Resend está funcionando correctamente.</p>
                 </div>
             </div>
         `;
         
         try {
-            const result = await transporter.sendMail({
-                from: `Portal UCI <${emailUser}>`,
-                to: emailUser,
+            // Usar Resend API directamente
+            const https = require('https');
+            
+            const mailData = {
+                from: fromEmail,
+                to: [emailUser],
                 subject: '🔍 Diagnóstico en Tiempo Real - Portal UCI',
                 html: emailHTML
+            };
+            
+            const data = JSON.stringify(mailData);
+            
+            const options = {
+                hostname: 'api.resend.com',
+                port: 443,
+                path: '/emails',
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${resendApiKey}`,
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(data, 'utf8')
+                }
+            };
+            
+            const result = await new Promise((resolve, reject) => {
+                const req = https.request(options, (res) => {
+                    let responseData = '';
+                    
+                    res.on('data', (chunk) => {
+                        responseData += chunk;
+                    });
+                    
+                    res.on('end', () => {
+                        if (res.statusCode >= 200 && res.statusCode < 300) {
+                            const response = JSON.parse(responseData);
+                            resolve(response);
+                        } else {
+                            reject(new Error(`Resend Error: ${res.statusCode} - ${responseData}`));
+                        }
+                    });
+                });
+                
+                req.on('error', (error) => {
+                    reject(error);
+                });
+                
+                req.write(data);
+                req.end();
             });
             
-            agregarPaso('email', `Correo enviado exitosamente`, 'completado');
-            agregarPaso('email', `Message ID: ${result.messageId}`, 'completado');
+            agregarPaso('email', `Correo enviado exitosamente con Resend`, 'completado');
+            agregarPaso('email', `Message ID: ${result.id}`, 'completado');
             agregarPaso('email', `Destinatario: ${emailUser}`, 'completado');
             
         } catch (emailError) {
-            agregarPaso('email', `Error enviando correo: ${emailError.message}`, 'error');
+            agregarPaso('email', `Error enviando correo con Resend: ${emailError.message}`, 'error');
             throw emailError;
         }
 

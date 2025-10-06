@@ -1,11 +1,23 @@
-const https = require('https');
+const nodemailer = require('nodemailer');
 
-// Configuración de Resend
-const RESEND_API_KEY = 're_jQYP7ZXu_GRSKEouf8kMtvgNvYMj47A9D';
-const FROM_EMAIL = 'Portal UCI <noreply@resend.dev>';
+// Configuración de Gmail SMTP
+const GMAIL_USER = 'hdgomez0@gmail.com';
+const GMAIL_PASS = 'wlstvjdckvhzxwvo';
+
+// Crear transporter de Gmail
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: GMAIL_USER,
+        pass: GMAIL_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
 
 /**
- * Envía un correo electrónico usando Resend
+ * Envía un correo electrónico usando Gmail SMTP
  * @param {string} to - Correo destinatario
  * @param {string} subject - Asunto
  * @param {string} html - Cuerpo HTML
@@ -13,19 +25,23 @@ const FROM_EMAIL = 'Portal UCI <noreply@resend.dev>';
  */
 const sendMail = async (to, subject, html, attachmentPath) => {
   try {
-    console.log('📧 Iniciando envío de correo con Resend a:', to);
+    console.log('📧 Iniciando envío de correo con Gmail SMTP a:', to);
     console.log('📧 Asunto:', subject);
     console.log('📧 Adjunto:', attachmentPath || 'Ninguno');
     
-    // Crear el objeto de datos para Resend
-    const mailData = {
-      from: FROM_EMAIL,
-      to: [to],
+    // Verificar conexión
+    await transporter.verify();
+    console.log('✅ Conexión Gmail verificada');
+    
+    // Configurar opciones del correo
+    const mailOptions = {
+      from: `Portal UCI <${GMAIL_USER}>`,
+      to: to,
       subject: subject,
       html: html
     };
     
-    // Si hay adjunto, agregarlo (Resend maneja adjuntos de forma diferente)
+    // Si hay adjunto, agregarlo
     if (attachmentPath) {
       const fs = require('fs');
       const path = require('path');
@@ -34,74 +50,29 @@ const sendMail = async (to, subject, html, attachmentPath) => {
         throw new Error(`El archivo adjunto no existe: ${attachmentPath}`);
       }
       
-      // Leer el archivo como base64
-      const fileBuffer = fs.readFileSync(attachmentPath);
-      const base64Content = fileBuffer.toString('base64');
-      
-      mailData.attachments = [
-        {
-          filename: path.basename(attachmentPath),
-          content: base64Content,
-          type: 'application/pdf',
-          disposition: 'attachment'
-        }
-      ];
+      mailOptions.attachments = [{
+        filename: path.basename(attachmentPath),
+        path: attachmentPath
+      }];
       
       console.log('📎 Archivo adjunto verificado:', attachmentPath);
     }
     
-    const data = JSON.stringify(mailData);
+    // Enviar correo
+    const info = await transporter.sendMail(mailOptions);
     
-    const options = {
-      hostname: 'api.resend.com',
-      port: 443,
-      path: '/emails',
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data, 'utf8')
-      }
+    console.log('✅ Correo enviado exitosamente con Gmail SMTP a:', to);
+    console.log('📧 Message ID:', info.messageId);
+    
+    return {
+      messageId: info.messageId,
+      accepted: [to],
+      rejected: [],
+      response: info.response
     };
     
-    return new Promise((resolve, reject) => {
-      const req = https.request(options, (res) => {
-        let responseData = '';
-        
-        res.on('data', (chunk) => {
-          responseData += chunk;
-        });
-        
-        res.on('end', () => {
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            const response = JSON.parse(responseData);
-            console.log('✅ Correo enviado exitosamente con Resend a:', to);
-            console.log('📧 Message ID:', response.id);
-            resolve({
-              messageId: response.id,
-              accepted: [to],
-              rejected: [],
-              response: response
-            });
-          } else {
-            console.error('❌ Error de Resend:', res.statusCode);
-            console.error('📧 Respuesta:', responseData);
-            reject(new Error(`Resend Error: ${res.statusCode} - ${responseData}`));
-          }
-        });
-      });
-      
-      req.on('error', (error) => {
-        console.error('❌ Error de conexión:', error.message);
-        reject(error);
-      });
-      
-      req.write(data);
-      req.end();
-    });
-    
   } catch (error) {
-    console.error('❌ Error enviando correo con Resend:', error);
+    console.error('❌ Error enviando correo con Gmail SMTP:', error);
     console.error('❌ Detalles del error:', {
       to,
       subject,
