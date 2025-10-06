@@ -1,8 +1,9 @@
 const nodemailer = require('nodemailer');
+require('dotenv').config();
 
-// Configuración de Gmail SMTP
-const GMAIL_USER = 'hdgomez0@gmail.com';
-const GMAIL_PASS = 'wlstvjdckvhzxwvo';
+// Configuración de Gmail SMTP desde variables de entorno
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_PASS = process.env.GMAIL_PASS;
 
 // Crear transporter de Gmail
 const transporter = nodemailer.createTransport({
