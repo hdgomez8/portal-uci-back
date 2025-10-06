@@ -1,25 +1,36 @@
 const express = require('express');
 const router = express.Router();
+const { diagnosticoCompleto } = require('../scripts/diagnostico-completo');
 
 // Ruta para obtener estado del diagnóstico
 router.get('/estado', (req, res) => {
     res.json({
         status: 'ok',
         message: 'Sistema de diagnóstico funcionando',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        configuracion: {
+            metodo: 'Gmail API (OAuth 2.0)',
+            puerto: 'HTTPS (443)',
+            proveedor: 'Google Gmail'
+        }
     });
 });
 
 // Ruta para ejecutar diagnóstico
 router.post('/ejecutar', async (req, res) => {
     try {
-        // Lógica de diagnóstico aquí
+        console.log('🔍 Ejecutando diagnóstico completo...');
+        
+        const resultado = await diagnosticoCompleto();
+        
         res.json({
-            status: 'success',
-            message: 'Diagnóstico ejecutado correctamente',
-            timestamp: new Date().toISOString()
+            status: resultado ? 'success' : 'warning',
+            message: resultado ? 'Diagnóstico ejecutado correctamente' : 'Diagnóstico completado con advertencias',
+            timestamp: new Date().toISOString(),
+            resultado: resultado
         });
     } catch (error) {
+        console.error('❌ Error en diagnóstico:', error);
         res.status(500).json({
             status: 'error',
             message: error.message,

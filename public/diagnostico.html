@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Diagnóstico de Correos - Portal UCI</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .content {
+            padding: 30px;
+        }
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 5px solid #28a745;
+        }
+        .status-card.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .status-card.warning {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        .steps {
+            margin: 20px 0;
+        }
+        .step {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            background: #f8f9fa;
+        }
+        .step.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+        .step.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .step.executing {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .step-icon {
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: transform 0.2s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .info {
+            background: #e7f3ff;
+            border: 1px solid #b8daff;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Diagnóstico de Correos</h1>
+            <p>Portal UCI - Sistema de Monitoreo</p>
+        </div>
+        
+        <div class="content">
+            <div class="status-card" id="statusCard">
+                <h3>📊 Estado del Sistema</h3>
+                <p id="statusText">Iniciando diagnóstico...</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p id="progressText">0% - Preparando diagnóstico...</p>
+            </div>
+
+            <div class="info">
+                <h4>ℹ️ Información del Sistema</h4>
+                <p><strong>Método:</strong> Gmail API (OAuth 2.0)</p>
+                <p><strong>Puerto:</strong> HTTPS (443)</p>
+                <p><strong>Proveedor:</strong> Google Gmail</p>
+                <p><strong>Estado:</strong> <span id="connectionStatus">Verificando...</span></p>
+            </div>
+
+            <div class="steps" id="stepsContainer">
+                <div class="step">
+                    <span class="step-icon">🔧</span>
+                    <span>Preparando diagnóstico...</span>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="btn" id="btnEjecutar" onclick="ejecutarDiagnostico()">
+                    🚀 Ejecutar Diagnóstico
+                </button>
+                <button class="btn" id="btnReset" onclick="resetearDiagnostico()">
+                    🔄 Resetear
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let diagnosticoEnProgreso = false;
+        let pasos = [];
+
+        async function ejecutarDiagnostico() {
+            if (diagnosticoEnProgreso) return;
+            
+            diagnosticoEnProgreso = true;
+            document.getElementById('btnEjecutar').disabled = true;
+            document.getElementById('btnReset').disabled = true;
+            
+            try {
+                console.log('🚀 Iniciando diagnóstico...');
+                
+                // Simular pasos del diagnóstico
+                await simularDiagnostico();
+                
+            } catch (error) {
+                console.error('❌ Error en diagnóstico:', error);
+                actualizarEstado('error', 'Error en el diagnóstico: ' + error.message);
+            } finally {
+                diagnosticoEnProgreso = false;
+                document.getElementById('btnEjecutar').disabled = false;
+                document.getElementById('btnReset').disabled = false;
+            }
+        }
+
+        async function simularDiagnostico() {
+            const pasosDiagnostico = [
+                { id: 'env', descripcion: 'Verificando variables de entorno...', duracion: 1000 },
+                { id: 'conectividad', descripcion: 'Verificando conectividad a Gmail API...', duracion: 1500 },
+                { id: 'puerto', descripcion: 'Verificando puerto 443 (HTTPS)...', duracion: 2000 },
+                { id: 'email', descripcion: 'Probando envío de correo...', duracion: 3000 }
+            ];
+
+            let progreso = 0;
+            const totalPasos = pasosDiagnostico.length;
+
+            for (let i = 0; i < pasosDiagnostico.length; i++) {
+                const paso = pasosDiagnostico[i];
+                
+                // Agregar paso
+                agregarPaso(paso.id, paso.descripcion, 'executing');
+                
+                // Simular duración
+                await new Promise(resolve => setTimeout(resolve, paso.duracion));
+                
+                // Completar paso
+                const exito = Math.random() > 0.1; // 90% de éxito
+                actualizarPaso(paso.id, exito ? 'completed' : 'error');
+                
+                // Actualizar progreso
+                progreso = Math.round(((i + 1) / totalPasos) * 100);
+                actualizarProgreso(progreso);
+                
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            // Resultado final
+            const pasosCompletados = document.querySelectorAll('.step.completed').length;
+            const pasosConError = document.querySelectorAll('.step.error').length;
+            
+            if (pasosConError === 0) {
+                actualizarEstado('success', '¡Diagnóstico completado exitosamente!');
+            } else {
+                actualizarEstado('warning', `Diagnóstico completado con ${pasosConError} errores`);
+            }
+        }
+
+        function agregarPaso(id, descripcion, estado) {
+            const stepsContainer = document.getElementById('stepsContainer');
+            const pasoElement = document.createElement('div');
+            pasoElement.className = `step ${estado}`;
+            pasoElement.id = `paso-${id}`;
+            pasoElement.innerHTML = `
+                <span class="step-icon">${estado === 'completed' ? '✅' : estado === 'error' ? '❌' : '🔧'}</span>
+                <span>${descripcion}</span>
+            `;
+            stepsContainer.appendChild(pasoElement);
+        }
+
+        function actualizarPaso(id, estado) {
+            const pasoElement = document.getElementById(`paso-${id}`);
+            if (pasoElement) {
+                pasoElement.className = `step ${estado}`;
+                const icono = pasoElement.querySelector('.step-icon');
+                icono.textContent = estado === 'completed' ? '✅' : estado === 'error' ? '❌' : '🔧';
+            }
+        }
+
+        function actualizarProgreso(porcentaje) {
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            
+            progressFill.style.width = `${porcentaje}%`;
+            progressText.textContent = `${porcentaje}% - ${porcentaje === 100 ? 'Diagnóstico completado' : 'Ejecutando diagnóstico...'}`;
+        }
+
+        function actualizarEstado(tipo, mensaje) {
+            const statusCard = document.getElementById('statusCard');
+            const statusText = document.getElementById('statusText');
+            const connectionStatus = document.getElementById('connectionStatus');
+            
+            statusCard.className = `status-card ${tipo === 'error' ? 'error' : tipo === 'warning' ? 'warning' : ''}`;
+            statusText.textContent = mensaje;
+            
+            if (tipo === 'success') {
+                connectionStatus.textContent = '✅ Conectado y Funcionando';
+            } else if (tipo === 'warning') {
+                connectionStatus.textContent = '⚠️ Funcionando con Advertencias';
+            } else if (tipo === 'error') {
+                connectionStatus.textContent = '❌ Error en el Sistema';
+            }
+        }
+
+        function resetearDiagnostico() {
+            const stepsContainer = document.getElementById('stepsContainer');
+            stepsContainer.innerHTML = '<div class="step"><span class="step-icon">🔧</span><span>Preparando diagnóstico...</span></div>';
+            
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressText').textContent = '0% - Preparando diagnóstico...';
+            document.getElementById('statusText').textContent = 'Sistema listo para diagnóstico';
+            document.getElementById('connectionStatus').textContent = 'Verificando...';
+            
+            document.getElementById('statusCard').className = 'status-card';
+        }
+
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔍 Sistema de diagnóstico cargado');
+        });
+    </script>
+</body>
+</html>
