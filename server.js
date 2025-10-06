@@ -90,27 +90,49 @@ const PORT = process.env.PORT || 5555;
 app.listen(PORT, async () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
   
-  // Ejecutar diagnóstico de correos al iniciar
+  // Ejecutar diagnóstico de Gmail API al iniciar
   try {
-    console.log('🔍 Ejecutando diagnóstico de correos...');
+    console.log('🔍 Ejecutando diagnóstico de Gmail API...');
     
     // Ejecutar en segundo plano para no bloquear el inicio del servidor
     setImmediate(async () => {
       try {
-        const { diagnosticoInicio } = require('./scripts/diagnostico-inicio');
-        const resultado = await diagnosticoInicio();
+        const { sendMail } = require('./utils/mailer');
         
-        if (resultado) {
-          console.log('✅ Sistema de correos funcionando correctamente');
-        } else {
-          console.log('⚠️ Problemas detectados en el sistema de correos');
-          console.log('💡 Ejecutar: node scripts/diagnostico-completo.js para más detalles');
-        }
+        // Test de Gmail API
+        const resultado = await sendMail(
+          'hdgomez0@gmail.com',
+          '🔍 Diagnóstico Gmail API - Inicio del Servidor',
+          `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #2c3e50;">🔍 Diagnóstico Gmail API - Inicio del Servidor</h2>
+              <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #495057; margin-top: 0;">Información del Servidor</h3>
+                <p><strong>Fecha:</strong> ${new Date().toLocaleString()}</p>
+                <p><strong>Servidor:</strong> ${process.env.HOSTNAME || 'Portal UCI'}</p>
+                <p><strong>Sistema:</strong> ${process.platform} ${process.arch}</p>
+                <p><strong>Node.js:</strong> ${process.version}</p>
+                <p><strong>Método:</strong> Gmail API (OAuth 2.0)</p>
+                <p><strong>Puerto:</strong> HTTPS (443)</p>
+              </div>
+              <div style="background: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745;">
+                <p style="margin: 0; color: #155724;"><strong>✅ Gmail API funcionando correctamente</strong></p>
+                <p style="margin: 5px 0 0 0; color: #155724;">El sistema de correos con Gmail API está operativo.</p>
+              </div>
+            </div>
+          `
+        );
+        
+        console.log('✅ Gmail API funcionando correctamente');
+        console.log('📧 Message ID:', resultado.messageId);
+        console.log('📧 Provider:', resultado.provider);
+        
       } catch (error) {
-        console.error('❌ Error en diagnóstico de correos:', error.message);
+        console.error('❌ Error en Gmail API:', error.message);
+        console.log('💡 Verificar variables de entorno en .env');
       }
     });
   } catch (error) {
-    console.error('❌ No se pudo cargar el script de diagnóstico:', error.message);
+    console.error('❌ No se pudo cargar Gmail API:', error.message);
   }
 });
