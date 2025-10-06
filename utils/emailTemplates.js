@@ -36,7 +36,7 @@ const getBaseTemplate = (content) => {
           ${logoBase64 ? `
             <img src="${logoBase64}" alt="Portal UCI" style="height: 60px; margin-bottom: 15px;">
           ` : `
-            <div style="font-size: 48px; margin-bottom: 15px;">🏢</div>
+            <div style="font-size: 48px; margin-bottom: 15px;">📧</div>
           `}
           <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">Portal UCI</h1>
           <p style="color: #e8f5e8; margin: 10px 0 0 0; font-size: 16px;">Sistema de Gestión de Recursos Humanos</p>
@@ -74,7 +74,7 @@ const getPermisoAprobadoTemplate = (empleado, solicitud, jefe) => {
     <div style="text-align: center; margin-bottom: 30px;">
       <div style="background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
         <h2 style="color: #155724; margin: 0; font-size: 24px; font-weight: 600;">
-          ✅ Permiso Aprobado
+          Permiso Aprobado
         </h2>
         <p style="color: #155724; margin: 10px 0 0 0; font-size: 16px;">
           Tu solicitud ha sido aprobada exitosamente
@@ -93,7 +93,7 @@ const getPermisoAprobadoTemplate = (empleado, solicitud, jefe) => {
     
     <div style="background-color: #f8f9fa; border-radius: 8px; padding: 25px; margin-bottom: 30px;">
       <h3 style="color: #2E7D32; margin: 0 0 20px 0; font-size: 18px; font-weight: 600;">
-        📋 Detalles del Permiso
+        Detalles del Permiso
       </h3>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
         <div>
@@ -171,7 +171,7 @@ const getPermisoRechazadoTemplate = (empleado, solicitud, motivo) => {
     
     <div style="background-color: #f8f9fa; border-radius: 8px; padding: 25px; margin-bottom: 30px;">
       <h3 style="color: #721c24; margin: 0 0 20px 0; font-size: 18px; font-weight: 600;">
-        📋 Detalles del Permiso
+        Detalles del Permiso
       </h3>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
         <div>
@@ -1609,7 +1609,7 @@ const getNuevoUsuarioTemplate = (empleado, documento) => {
     <body>
         <div class="container">
             <div class="header">
-                <div class="logo">🏢 Portal UCI</div>
+                <div class="logo">Portal UCI</div>
                 <div class="subtitle">Sistema de Gestión de Recursos Humanos</div>
             </div>
 
@@ -1621,7 +1621,7 @@ const getNuevoUsuarioTemplate = (empleado, documento) => {
             </div>
 
             <div class="credentials-section">
-                <div class="credentials-title">🔐 Tus Credenciales de Acceso</div>
+                <div class="credentials-title">Tus Credenciales de Acceso</div>
                 <div class="credential-item">
                     <span class="credential-label">Usuario:</span>
                     <span class="credential-value">${empleado.email}</span>
