@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { diagnosticoCompleto } = require('../scripts/diagnostico-completo');
+const { diagnosticoProduccion } = require('../scripts/diagnostico-produccion');
 
 // Ruta para obtener estado del diagnóstico
 router.get('/estado', (req, res) => {
@@ -19,9 +20,9 @@ router.get('/estado', (req, res) => {
 // Ruta para ejecutar diagnóstico
 router.post('/ejecutar', async (req, res) => {
     try {
-        console.log('🔍 Ejecutando diagnóstico completo...');
+        console.log('🔍 Ejecutando diagnóstico de producción...');
         
-        const resultado = await diagnosticoCompleto();
+        const resultado = await diagnosticoProduccion();
         
         res.json({
             status: resultado ? 'success' : 'warning',
