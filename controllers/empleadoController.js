@@ -655,12 +655,13 @@ exports.actualizarDocumentoEmpleado = async (req, res) => {
       }
     }
 
-    // Actualizar los campos del documento
+    // Actualizar SOLO los campos del documento (NO el código)
     const camposActualizar = {};
     if (documento) camposActualizar.documento = documento;
     if (tipo_documento) camposActualizar.tipo_documento = tipo_documento;
     if (ciudad_documento) camposActualizar.ciudad_documento = ciudad_documento;
 
+    // IMPORTANTE: No actualizar el código para mantener la unicidad
     await empleado.update(camposActualizar);
     
     res.json({ 
@@ -668,6 +669,7 @@ exports.actualizarDocumentoEmpleado = async (req, res) => {
       empleado: {
         id: empleado.id,
         nombres: empleado.nombres,
+        codigo: empleado.codigo, // El código NO cambia
         documento: empleado.documento,
         tipo_documento: empleado.tipo_documento,
         ciudad_documento: empleado.ciudad_documento
