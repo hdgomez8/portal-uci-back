@@ -107,6 +107,40 @@ exports.actualizarEmpleado = async (req, res) => {
             }
         }
 
+        // Si se está actualizando el documento del empleado, actualizar el código también
+        if (req.body.documento && req.body.documento !== empleado.documento) {
+            // Verificar que el nuevo documento no esté en uso por otro empleado
+            const documentoEnUso = await Empleado.findOne({ 
+                where: { 
+                    documento: req.body.documento,
+                    id: { [require('sequelize').Op.ne]: req.params.id }
+                }
+            });
+            
+            if (documentoEnUso) {
+                return res.status(400).json({ 
+                    error: "El documento ya está en uso por otro empleado" 
+                });
+            }
+
+            // Verificar que el nuevo documento no esté en uso como código
+            const codigoEnUso = await Empleado.findOne({ 
+                where: { 
+                    codigo: req.body.documento,
+                    id: { [require('sequelize').Op.ne]: req.params.id }
+                }
+            });
+            
+            if (codigoEnUso) {
+                return res.status(400).json({ 
+                    error: "El documento ya está en uso como código por otro empleado" 
+                });
+            }
+
+            // El código será igual al documento
+            req.body.codigo = req.body.documento;
+        }
+
         await empleado.update(req.body);
         res.json({ message: "Empleado actualizado", empleado });
     } catch (error) {
