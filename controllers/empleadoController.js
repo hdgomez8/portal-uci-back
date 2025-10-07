@@ -655,13 +655,51 @@ exports.actualizarDocumentoEmpleado = async (req, res) => {
       }
     }
 
-    // Actualizar SOLO los campos del documento (NO el código)
+    // Generar nuevo código si se cambia el documento
+    let nuevoCodigo = empleado.codigo; // Mantener el código actual por defecto
+    
+    if (documento && documento !== empleado.documento) {
+      // Generar un nuevo código único
+      let codigoGenerado = false;
+      let intentos = 0;
+      const maxIntentos = 100;
+      
+      while (!codigoGenerado && intentos < maxIntentos) {
+        // Generar código basado en el nuevo documento (últimos 6 dígitos)
+        const ultimosDigitos = documento.slice(-6);
+        const codigoBase = parseInt(ultimosDigitos);
+        const codigoAleatorio = Math.floor(Math.random() * 1000);
+        nuevoCodigo = parseInt(`${codigoBase}${codigoAleatorio.toString().padStart(3, '0')}`);
+        
+        // Verificar que el código no esté en uso
+        const codigoEnUso = await Empleado.findOne({ 
+          where: { 
+            codigo: nuevoCodigo,
+            id: { [require('sequelize').Op.ne]: id }
+          }
+        });
+        
+        if (!codigoEnUso) {
+          codigoGenerado = true;
+        }
+        
+        intentos++;
+      }
+      
+      if (!codigoGenerado) {
+        return res.status(500).json({ 
+          error: "No se pudo generar un código único después de múltiples intentos" 
+        });
+      }
+    }
+
+    // Actualizar los campos del documento y código
     const camposActualizar = {};
     if (documento) camposActualizar.documento = documento;
     if (tipo_documento) camposActualizar.tipo_documento = tipo_documento;
     if (ciudad_documento) camposActualizar.ciudad_documento = ciudad_documento;
+    if (nuevoCodigo !== empleado.codigo) camposActualizar.codigo = nuevoCodigo;
 
-    // IMPORTANTE: No actualizar el código para mantener la unicidad
     await empleado.update(camposActualizar);
     
     res.json({ 
@@ -669,7 +707,7 @@ exports.actualizarDocumentoEmpleado = async (req, res) => {
       empleado: {
         id: empleado.id,
         nombres: empleado.nombres,
-        codigo: empleado.codigo, // El código NO cambia
+        codigo: empleado.codigo, // El código SÍ cambia si se cambió el documento
         documento: empleado.documento,
         tipo_documento: empleado.tipo_documento,
         ciudad_documento: empleado.ciudad_documento
