@@ -655,42 +655,26 @@ exports.actualizarDocumentoEmpleado = async (req, res) => {
       }
     }
 
-    // Generar nuevo código si se cambia el documento
+    // El código será igual al documento
     let nuevoCodigo = empleado.codigo; // Mantener el código actual por defecto
     
     if (documento && documento !== empleado.documento) {
-      // Generar un nuevo código único
-      let codigoGenerado = false;
-      let intentos = 0;
-      const maxIntentos = 100;
-      
-      while (!codigoGenerado && intentos < maxIntentos) {
-        // Generar código basado en el nuevo documento (últimos 6 dígitos)
-        const ultimosDigitos = documento.slice(-6);
-        const codigoBase = parseInt(ultimosDigitos);
-        const codigoAleatorio = Math.floor(Math.random() * 1000);
-        nuevoCodigo = parseInt(`${codigoBase}${codigoAleatorio.toString().padStart(3, '0')}`);
-        
-        // Verificar que el código no esté en uso
-        const codigoEnUso = await Empleado.findOne({ 
-          where: { 
-            codigo: nuevoCodigo,
-            id: { [require('sequelize').Op.ne]: id }
-          }
-        });
-        
-        if (!codigoEnUso) {
-          codigoGenerado = true;
+      // Verificar que el nuevo documento no esté en uso como código
+      const codigoEnUso = await Empleado.findOne({ 
+        where: { 
+          codigo: documento,
+          id: { [require('sequelize').Op.ne]: id }
         }
-        
-        intentos++;
-      }
+      });
       
-      if (!codigoGenerado) {
-        return res.status(500).json({ 
-          error: "No se pudo generar un código único después de múltiples intentos" 
+      if (codigoEnUso) {
+        return res.status(400).json({ 
+          error: "El documento ya está en uso como código por otro empleado" 
         });
       }
+      
+      // El código será exactamente el documento
+      nuevoCodigo = documento;
     }
 
     // Actualizar los campos del documento y código
