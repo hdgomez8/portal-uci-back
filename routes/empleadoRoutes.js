@@ -3,7 +3,7 @@ const router = express.Router();
 const upload = require('../middlewares/upload');
 const uploadCV = require('../middlewares/uploadCV');
 const uploadFirma = require('../middlewares/uploadFirma');
-const { crearEmpleado, obtenerEmpleados, obtenerEmpleadoPorId, actualizarEmpleado, eliminarEmpleado, subirFoto, subirCV, subirFirma, verificarFirma, eliminarFirma, obtenerEmpleadosPorJefe, actualizarAreaEmpleado, obtenerEmailNotificacion, obtenerEmpleadoPorDocumento, buscarEmpleados, obtenerEmpleadosPorArea, actualizarEstadoEmpleado, obtenerJefeEmpleado } = require('../controllers/empleadoController');
+const { crearEmpleado, obtenerEmpleados, obtenerEmpleadoPorId, actualizarEmpleado, eliminarEmpleado, subirFoto, subirCV, subirFirma, verificarFirma, eliminarFirma, obtenerEmpleadosPorJefe, actualizarAreaEmpleado, obtenerEmailNotificacion, obtenerEmpleadoPorDocumento, buscarEmpleados, obtenerEmpleadosPorArea, actualizarEstadoEmpleado, obtenerJefeEmpleado, actualizarDocumentoEmpleado } = require('../controllers/empleadoController');
 
 // CRUD
 router.post('/', crearEmpleado);
@@ -33,5 +33,8 @@ router.get('/:empleadoId/jefe', obtenerJefeEmpleado);
 
 // Ruta para actualizar estado del empleado (activar/desactivar)
 router.patch('/:id/estado', actualizarEstadoEmpleado);
+
+// Ruta para actualizar documento del empleado
+router.patch('/:id/documento', actualizarDocumentoEmpleado);
 
 module.exports = router;

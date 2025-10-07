@@ -628,6 +628,57 @@ exports.actualizarEstadoEmpleado = async (req, res) => {
   }
 };
 
+// Actualizar documento del empleado
+exports.actualizarDocumentoEmpleado = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { documento, tipo_documento, ciudad_documento } = req.body;
+    
+    const empleado = await Empleado.findByPk(id);
+    if (!empleado) {
+      return res.status(404).json({ message: "Empleado no encontrado" });
+    }
+
+    // Verificar que el nuevo documento no esté en uso por otro empleado
+    if (documento && documento !== empleado.documento) {
+      const documentoEnUso = await Empleado.findOne({ 
+        where: { 
+          documento: documento,
+          id: { [require('sequelize').Op.ne]: id }
+        }
+      });
+      
+      if (documentoEnUso) {
+        return res.status(400).json({ 
+          error: "El documento ya está en uso por otro empleado" 
+        });
+      }
+    }
+
+    // Actualizar los campos del documento
+    const camposActualizar = {};
+    if (documento) camposActualizar.documento = documento;
+    if (tipo_documento) camposActualizar.tipo_documento = tipo_documento;
+    if (ciudad_documento) camposActualizar.ciudad_documento = ciudad_documento;
+
+    await empleado.update(camposActualizar);
+    
+    res.json({ 
+      message: "Documento del empleado actualizado correctamente", 
+      empleado: {
+        id: empleado.id,
+        nombres: empleado.nombres,
+        documento: empleado.documento,
+        tipo_documento: empleado.tipo_documento,
+        ciudad_documento: empleado.ciudad_documento
+      }
+    });
+  } catch (error) {
+    console.error('Error en actualizarDocumentoEmpleado:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Obtener información del jefe de un empleado
 exports.obtenerJefeEmpleado = async (req, res) => {
   try {
