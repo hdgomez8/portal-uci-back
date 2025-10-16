@@ -1,14 +1,18 @@
 const multer = require('multer');
+const fs = require('fs');
 const path = require('path');
 
-// Configurar almacenamiento de archivos
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/solicitudes/'); // Carpeta donde se guardan los archivos
-    },
-    filename: function (req, file, cb) {
-        cb(null, Date.now() + path.extname(file.originalname)); // Renombrar archivos con timestamp
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '..', 'uploads', 'solicitudes'); // ruta absoluta
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true }); // crea si no existe
     }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
 });
 
 // Configurar multer con límites y validaciones
