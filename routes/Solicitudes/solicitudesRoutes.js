@@ -1,12 +1,12 @@
 const express = require('express');
 const {obtenerSolicitudes, crearSolicitud, obtenerSolicitudesPorEmpleado, obtenerSolicitudesPorJefe, actualizarEstadoSolicitud, descargarPDF} = require('../../controllers/Solicitudes/solicitudController');
 const {obtenerStatsGenerales, obtenerStatsPorEmpleado, obtenerStatsPorJefe} = require('../../controllers/Solicitudes/statsController');
-const uploadSoportesSolicitud = require('../../middlewares/uploadSoportesSolicitud');
+const { upload: uploadSoportesSolicitud, normalizeFilePath } = require('../../middlewares/uploadSoportesSolicitud');
 
 const router = express.Router();
 
 router.get('/', obtenerSolicitudes);  // Obtener todos los roles
-router.post('/', uploadSoportesSolicitud.array('adjuntos', 5), crearSolicitud);
+router.post('/', uploadSoportesSolicitud.array('adjuntos', 5), normalizeFilePath, crearSolicitud);
 router.get('/empleado/:empleado_id', obtenerSolicitudesPorEmpleado);
 router.get('/jefe/:jefe_id', obtenerSolicitudesPorJefe);  // Obtener solicitudes de empleados del jefe
 router.put('/:id/estado', actualizarEstadoSolicitud);  // Actualizar estado de solicitud

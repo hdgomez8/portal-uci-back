@@ -15,6 +15,18 @@ const storage = multer.diskStorage({
   }
 });
 
+// Middleware personalizado para normalizar la ruta del archivo
+const normalizeFilePath = (req, res, next) => {
+  if (req.files && req.files.length > 0) {
+    req.files.forEach(file => {
+      // Convertir ruta absoluta a relativa
+      const relativePath = path.relative(path.join(__dirname, '..'), file.path);
+      file.path = relativePath; // Sobrescribir con ruta relativa
+    });
+  }
+  next();
+};
+
 // Configurar multer con límites y validaciones
 const upload = multer({ 
   storage,
@@ -42,4 +54,4 @@ const upload = multer({
   }
 });
 
-module.exports = upload;
+module.exports = { upload, normalizeFilePath };
