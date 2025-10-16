@@ -53,7 +53,7 @@ app.use((req, res, next) => {
   
   next();
 });
-
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // Rutas
 app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
@@ -71,7 +71,7 @@ app.use('/api/cesantias', cesantiasRoutes);
 app.use('/api/vacaciones', vacacionesRoutes);
 app.use('/api/tipos-solicitud', tipoSolicitudRoutes);
 app.use('/api/diagnostico', diagnosticoRoutes);
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 app.use("/pdfs", express.static(path.join(__dirname, "pdfs")));
 app.use("/firmas", express.static(path.join(__dirname, "firmas")));
 app.use("/public", express.static(path.join(__dirname, "public")));
