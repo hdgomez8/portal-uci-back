@@ -148,6 +148,7 @@ const crearSolicitud = async (req, res) => {
         */
 
         // Procesar fechas correctamente
+        console.log("🔍 DEBUG - Iniciando procesamiento de fecha...");
         const fechaProcesada = procesarFecha(fecha_permiso || fecha);
         console.log("🔍 DEBUG - Procesamiento de fecha:");
         console.log("  - Fecha original:", fecha_permiso || fecha);
@@ -155,6 +156,14 @@ const crearSolicitud = async (req, res) => {
         console.log("  - Tipo de fecha procesada:", typeof fechaProcesada);
 
         // Crear la solicitud en la base de datos
+        console.log("🔍 DEBUG - Iniciando creación de solicitud en BD...");
+        console.log("  - empleado_id:", empleado_id);
+        console.log("  - tipo_solicitud_id:", tipo_solicitud_id);
+        console.log("  - fecha:", fechaProcesada);
+        console.log("  - hora:", hora);
+        console.log("  - duracion:", duracion);
+        console.log("  - observaciones:", observaciones);
+        
         const nuevaSolicitud = await Solicitud.create({
             empleado_id,
             tipo_solicitud_id,
@@ -196,6 +205,7 @@ const crearSolicitud = async (req, res) => {
         }
 
         // Confirmar transacción PRIMERO - antes de cualquier operación que pueda fallar
+        console.log("🔍 DEBUG - Confirmando transacción...");
         await t.commit();
         console.log('✅ Transacción confirmada exitosamente');
 
@@ -255,11 +265,24 @@ const crearSolicitud = async (req, res) => {
         console.error('  - Tipo:', error.name);
         console.error('  - Código:', error.code);
         
+        // Enviar información detallada del error al frontend
         res.status(500).json({ 
             error: 'Error al crear la solicitud', 
             detalle: error.message,
             tipo: error.name,
-            codigo: error.code
+            codigo: error.code,
+            stack: error.stack,
+            debug: {
+                empleado_id: req.body?.empleado_id,
+                tipo_solicitud_id: req.body?.tipo_solicitud_id,
+                fecha: req.body?.fecha,
+                fecha_permiso: req.body?.fecha_permiso,
+                hora: req.body?.hora,
+                duracion: req.body?.duracion,
+                observaciones: req.body?.observaciones,
+                archivos_count: req.files ? req.files.length : 0,
+                usuario_autenticado: req.usuario ? req.usuario.id : 'No autenticado'
+            }
         });
     }
 };
