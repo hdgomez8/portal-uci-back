@@ -53,7 +53,16 @@ app.use((req, res, next) => {
   
   next();
 });
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// Servir archivos estáticos de uploads sin autenticación
+app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
+  setHeaders: (res, path) => {
+    // Asegurar que los archivos se sirvan con los headers correctos
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  }
+}));
 // Rutas
 app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
@@ -75,6 +84,50 @@ app.use('/api/diagnostico', diagnosticoRoutes);
 app.use("/pdfs", express.static(path.join(__dirname, "pdfs")));
 app.use("/firmas", express.static(path.join(__dirname, "firmas")));
 app.use("/public", express.static(path.join(__dirname, "public")));
+
+// Ruta específica para servir archivos adjuntos sin autenticación
+app.get('/uploads/solicitudes/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, 'uploads', 'solicitudes', filename);
+  
+  console.log(`📁 Sirviendo archivo adjunto: ${filePath}`);
+  
+  // Verificar que el archivo existe
+  if (!require('fs').existsSync(filePath)) {
+    console.log(`❌ Archivo no encontrado: ${filePath}`);
+    return res.status(404).json({ message: 'Archivo no encontrado' });
+  }
+  
+  // Servir el archivo con headers apropiados
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  
+  res.sendFile(filePath);
+});
+
+// Ruta alternativa para servir archivos adjuntos (sin /uploads en la URL)
+app.get('/api/files/solicitudes/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, 'uploads', 'solicitudes', filename);
+  
+  console.log(`📁 Sirviendo archivo adjunto via API: ${filePath}`);
+  
+  // Verificar que el archivo existe
+  if (!require('fs').existsSync(filePath)) {
+    console.log(`❌ Archivo no encontrado: ${filePath}`);
+    return res.status(404).json({ message: 'Archivo no encontrado' });
+  }
+  
+  // Servir el archivo con headers apropiados
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  
+  res.sendFile(filePath);
+});
 
 // Sincronizar la base de datos
 (async () => {
