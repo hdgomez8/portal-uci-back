@@ -107,7 +107,11 @@ const crearSolicitud = async (req, res) => {
             console.log("  - fecha_permiso local:", new Date(req.body.fecha_permiso).toLocaleDateString());
         }
         
-        console.log("Archivos adjuntos recibidos:", req.files);
+        console.log("🔍 DEBUG - Archivos adjuntos recibidos:");
+        console.log("  - Cantidad de archivos:", req.files ? req.files.length : 0);
+        console.log("  - Archivos:", req.files);
+        console.log("  - Usuario autenticado:", req.usuario ? req.usuario.id : 'No autenticado');
+        console.log("  - Headers de autorización:", req.headers.authorization ? 'Presente' : 'Ausente');
 
         const { empleado_id, tipo_solicitud_id, fecha, fecha_permiso, hora, duracion, observaciones } = req.body;
 
@@ -160,16 +164,30 @@ const crearSolicitud = async (req, res) => {
 
         // Guardar adjuntos si existen
         if (req.files && req.files.length > 0) {
-            const adjuntos = req.files.map(file => ({
-                solicitud_id: nuevaSolicitud.id,
-                ruta_archivo: file.path,
-                nombre_archivo: file.originalname,
-                tipo_mime: file.mimetype,
-                tamaño: file.size
-            }));
+            console.log("🔍 DEBUG - Procesando adjuntos:");
+            console.log("  - Archivos a procesar:", req.files.length);
+            
+            const adjuntos = req.files.map((file, index) => {
+                console.log(`  - Archivo ${index + 1}:`, {
+                    nombre: file.originalname,
+                    tamaño: file.size,
+                    tipo: file.mimetype,
+                    ruta: file.path
+                });
+                
+                return {
+                    solicitud_id: nuevaSolicitud.id,
+                    ruta_archivo: file.path,
+                    nombre_archivo: file.originalname,
+                    tipo_mime: file.mimetype,
+                    tamaño: file.size
+                };
+            });
 
             await AdjuntoSolicitud.bulkCreate(adjuntos, { transaction: t });
-            console.log("Adjuntos guardados:", adjuntos);
+            console.log("✅ Adjuntos guardados exitosamente:", adjuntos.length);
+        } else {
+            console.log("⚠️ No hay archivos adjuntos para procesar");
         }
 
         // Confirmar transacción PRIMERO - antes de cualquier operación que pueda fallar
