@@ -244,8 +244,18 @@ const crearSolicitud = async (req, res) => {
 
     } catch (error) {
         await t.rollback(); // Revertir cambios si hay error
-        console.error("Error al crear la solicitud:", error);
-        res.status(500).json({ error: 'Error al crear la solicitud', detalle: error.message });
+        console.error('❌ Error al crear la solicitud:');
+        console.error('  - Mensaje:', error.message);
+        console.error('  - Stack:', error.stack);
+        console.error('  - Tipo:', error.name);
+        console.error('  - Código:', error.code);
+        
+        res.status(500).json({ 
+            error: 'Error al crear la solicitud', 
+            detalle: error.message,
+            tipo: error.name,
+            codigo: error.code
+        });
     }
 };
 
