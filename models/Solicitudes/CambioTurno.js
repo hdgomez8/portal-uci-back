@@ -18,7 +18,13 @@ const CambioTurno = db.define('CambioTurno', {
     },
     fecha: {
         type: DataTypes.DATEONLY,
-        allowNull: false
+        allowNull: false,
+        comment: 'Fecha en que se realizará el cambio de turno'
+    },
+    fecha_turno_reemplazo: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: 'Fecha en que se realizará el turno de reemplazo'
     },
     horario_cambiar: {
         type: DataTypes.STRING(100)

@@ -53,9 +53,16 @@ exports.crearCambioTurno = async (req, res) => {
       }
     }
 
+    // Preparar datos para crear la solicitud, asegurando fecha_creacion sea la fecha actual
+    const datosSolicitud = {
+      ...req.body,
+      fecha_creacion: new Date() // Establecer explícitamente la fecha de creación como hoy
+    };
+    
     // Crear la solicitud
-    const nueva = await CambioTurno.create(req.body, { transaction: t });
+    const nueva = await CambioTurno.create(datosSolicitud, { transaction: t });
     console.log('Solicitud de cambio de turno creada:', nueva);
+    console.log('Fecha de creación guardada:', nueva.fecha_creacion);
 
     // Buscar al empleado de reemplazo por cédula
     let empleadoReemplazo = null;
@@ -216,9 +223,13 @@ exports.listarCambiosTurno = async (req, res) => {
         nombre_reemplazo: cambio.nombre_reemplazo,
         cedula_reemplazo: cambio.cedula_reemplazo,
         fecha: cambio.fecha,
+        fecha_turno_reemplazo: cambio.fecha_turno_reemplazo,
+        fecha_creacion: cambio.fecha_creacion,
         motivo: cambio.motivo,
         horario_cambiar: cambio.horario_cambiar,
         horario_reemplazo: cambio.horario_reemplazo,
+        observaciones: cambio.observaciones,
+        afectacion_nomina: cambio.afectacion_nomina,
         empleado: {
           id: cambio.empleado_id,
           nombres: cambio.empleado_nombre,
@@ -238,7 +249,8 @@ exports.listarCambiosTurno = async (req, res) => {
         where: { deleted_at: null },
         attributes: [
           'id', 'estado', 'visto_bueno_reemplazo', 'nombre_reemplazo', 
-          'cedula_reemplazo', 'fecha', 'motivo', 'horario_cambiar', 'horario_reemplazo'
+          'cedula_reemplazo', 'fecha', 'fecha_turno_reemplazo', 'fecha_creacion', 'motivo', 
+          'horario_cambiar', 'horario_reemplazo', 'observaciones', 'afectacion_nomina'
         ],
         include: [
           {
@@ -262,7 +274,15 @@ exports.listarCambiosTurno = async (req, res) => {
 // Obtener una solicitud por ID
 exports.obtenerCambioTurno = async (req, res) => {
   try {
-    const cambio = await CambioTurno.findByPk(req.params.id);
+    const cambio = await CambioTurno.findByPk(req.params.id, {
+      include: [
+        {
+          model: Empleado,
+          as: 'empleado',
+          attributes: ['id', 'nombres', 'documento']
+        }
+      ]
+    });
     if (!cambio || cambio.deleted_at) return res.status(404).json({ message: 'No encontrado' });
     res.json(cambio);
   } catch (error) {
@@ -674,7 +694,13 @@ exports.listarEnRevision = async (req, res) => {
       nombre_reemplazo: cambio.nombre_reemplazo,
       cedula_reemplazo: cambio.cedula_reemplazo,
       fecha: cambio.fecha,
+      fecha_turno_reemplazo: cambio.fecha_turno_reemplazo,
+      fecha_creacion: cambio.fecha_creacion,
       motivo: cambio.motivo,
+      horario_cambiar: cambio.horario_cambiar,
+      horario_reemplazo: cambio.horario_reemplazo,
+      observaciones: cambio.observaciones,
+      afectacion_nomina: cambio.afectacion_nomina,
       empleado: {
         id: cambio.empleado_id,
         nombres: cambio.empleado_nombre,
@@ -918,7 +944,7 @@ exports.listarCambiosTurnoPorEmpleado = async (req, res) => {
       },
       attributes: [
         'id', 'estado', 'visto_bueno_reemplazo', 'nombre_reemplazo', 
-        'cedula_reemplazo', 'fecha', 'motivo', 'horario_cambiar', 'horario_reemplazo',
+        'cedula_reemplazo', 'fecha', 'fecha_turno_reemplazo', 'motivo', 'horario_cambiar', 'horario_reemplazo',
         'fecha_creacion', 'observaciones', 'afectacion_nomina'
       ],
       include: [

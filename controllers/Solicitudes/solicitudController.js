@@ -115,6 +115,37 @@ const crearSolicitud = async (req, res) => {
 
         const { empleado_id, tipo_solicitud_id, fecha, fecha_permiso, hora, duracion, observaciones } = req.body;
 
+        // Verificar que el empleado existe antes de crear la solicitud
+        console.log('🔍 DEBUG - Verificando que el empleado existe...');
+        const empleadoExiste = await Empleado.findByPk(empleado_id);
+        
+        if (!empleadoExiste) {
+          console.log(`❌ Empleado con ID ${empleado_id} no existe en la base de datos`);
+          return res.status(404).json({
+            error: 'Empleado no encontrado',
+            detalle: `El empleado con ID ${empleado_id} no existe en la base de datos`,
+            empleado_id: empleado_id
+          });
+        }
+        
+        console.log(`✅ Empleado encontrado: ${empleadoExiste.nombres} (ID: ${empleadoExiste.id})`);
+        
+        // Verificar que el tipo de solicitud existe
+        console.log('🔍 DEBUG - Verificando que el tipo de solicitud existe...');
+        const TipoSolicitud = require('../../models/Solicitudes/TipoSolicitud');
+        const tipoSolicitudExiste = await TipoSolicitud.findByPk(tipo_solicitud_id);
+        
+        if (!tipoSolicitudExiste) {
+          console.log(`❌ Tipo de solicitud con ID ${tipo_solicitud_id} no existe en la base de datos`);
+          return res.status(404).json({
+            error: 'Tipo de solicitud no encontrado',
+            detalle: `El tipo de solicitud con ID ${tipo_solicitud_id} no existe en la base de datos`,
+            tipo_solicitud_id: tipo_solicitud_id
+          });
+        }
+        
+        console.log(`✅ Tipo de solicitud encontrado: ${tipoSolicitudExiste.nombre} (ID: ${tipoSolicitudExiste.id})`);
+        
         // TEMPORAL: Comentando verificación de rol que puede estar causando el error 500
         console.log('🔍 DEBUG - Saltando verificación de rol temporalmente');
         
