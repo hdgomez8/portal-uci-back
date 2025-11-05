@@ -20,6 +20,7 @@ const vacacionesRoutes = require('./routes/vacacionesRoutes');
 const tipoSolicitudRoutes = require('./routes/tipoSolicitudRoutes');
 const diagnosticoRoutes = require('./routes/diagnosticoRoutes');
 const path = require("path");
+const { Sequelize } = require('sequelize');
 
 const app = express();
 
@@ -129,13 +130,51 @@ app.get('/api/files/solicitudes/:filename', (req, res) => {
   res.sendFile(filePath);
 });
 
-// Sincronizar la base de datos
+// Función para ejecutar migración de fecha_turno_reemplazo
+async function ejecutarMigracionFechaTurnoReemplazo() {
+  try {
+    console.log('🔄 Verificando migración: fecha_turno_reemplazo...');
+    
+    const queryInterface = db.getQueryInterface();
+    
+    // Verificar si la columna ya existe
+    const [results] = await db.query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'solicitudes_cambio_turno' 
+      AND COLUMN_NAME = 'fecha_turno_reemplazo'
+    `);
+    
+    if (results.length > 0) {
+      console.log('✅ La columna fecha_turno_reemplazo ya existe en la tabla');
+      return;
+    }
+    
+    // Ejecutar la migración
+    await queryInterface.addColumn('solicitudes_cambio_turno', 'fecha_turno_reemplazo', {
+      type: Sequelize.DATEONLY,
+      allowNull: true,
+      comment: 'Fecha en que se realizará el turno de reemplazo'
+    });
+    
+    console.log('✅ Migración ejecutada exitosamente: fecha_turno_reemplazo agregado');
+  } catch (error) {
+    console.error('❌ Error en migración fecha_turno_reemplazo:', error.message);
+    // No lanzamos el error para que el servidor pueda iniciar aunque falle la migración
+  }
+}
+
+// Sincronizar la base de datos y ejecutar migraciones
 (async () => {
   try {
     await db.sync();
-    console.log('Base de datos sincronizada');
+    console.log('✅ Base de datos sincronizada');
+    
+    // Ejecutar migración de fecha_turno_reemplazo
+    await ejecutarMigracionFechaTurnoReemplazo();
   } catch (error) {
-    console.error('Error al sincronizar la base de datos:', error);
+    console.error('❌ Error al sincronizar la base de datos:', error);
   }
 })();
 
