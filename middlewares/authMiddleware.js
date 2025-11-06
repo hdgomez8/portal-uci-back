@@ -26,7 +26,22 @@ const verificarToken = (req, res, next) => {
     } catch (error) {
         console.error("❌ Error al verificar token:", error.message);
         console.error("❌ Tipo de error:", error.name);
-        res.status(400).json({ message: 'Token inválido', error: error.message });
+        
+        // Determinar si el token está expirado o es inválido
+        const isExpired = error.name === 'TokenExpiredError';
+        const isInvalid = error.name === 'JsonWebTokenError' || error.name === 'NotBeforeError';
+        
+        // Devolver 401 (Unauthorized) para tokens expirados o inválidos
+        if (isExpired || isInvalid) {
+            return res.status(401).json({ 
+                message: isExpired ? 'Token expirado' : 'Token inválido', 
+                error: error.message,
+                expired: isExpired
+            });
+        }
+        
+        // Para otros errores, devolver 400
+        res.status(400).json({ message: 'Error al verificar token', error: error.message });
     }
 };
 
