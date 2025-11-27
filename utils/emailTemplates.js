@@ -738,6 +738,111 @@ const getReemplazoAprobadoTemplate = (empleadoReemplazo, solicitud, empleadoSoli
   return getBaseTemplate(content);
 };
 
+// Plantilla para notificar al jefe sobre cambio de turno pendiente de revisión
+const getCambioTurnoNotificarJefeTemplate = (jefe, empleado, solicitud, empleadoReemplazo) => {
+  const content = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+        <h2 style="color: #856404; margin: 0; font-size: 24px; font-weight: 600;">
+          ⏳ Solicitud de Cambio de Turno Pendiente de Revisión
+        </h2>
+        <p style="color: #856404; margin: 10px 0 0 0; font-size: 16px;">
+          Nueva solicitud requiere tu aprobación
+        </p>
+      </div>
+    </div>
+    
+    <div style="margin-bottom: 30px;">
+      <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+        Hola <strong>${jefe.nombres}</strong>,
+      </p>
+      <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+        El empleado <strong>${empleado.nombres}</strong> ha solicitado un cambio de turno que ya cuenta con el visto bueno del reemplazo y ahora requiere tu <strong>aprobación</strong>.
+      </p>
+    </div>
+    
+    <div style="background-color: #f8f9fa; border-radius: 8px; padding: 25px; margin-bottom: 30px;">
+      <h3 style="color: #2E7D32; margin: 0 0 20px 0; font-size: 18px; font-weight: 600;">
+        📋 Detalles de la Solicitud
+      </h3>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+        <div>
+          <p style="margin: 0 0 5px 0; color: #6c757d; font-size: 14px; font-weight: 500;">Empleado Solicitante</p>
+          <p style="margin: 0; color: #333333; font-size: 16px; font-weight: 600;">${empleado.nombres}</p>
+        </div>
+        <div>
+          <p style="margin: 0 0 5px 0; color: #6c757d; font-size: 14px; font-weight: 500;">Número de Solicitud</p>
+          <p style="margin: 0; color: #333333; font-size: 16px; font-weight: 600;">#${solicitud.id}</p>
+        </div>
+        <div>
+          <p style="margin: 0 0 5px 0; color: #6c757d; font-size: 14px; font-weight: 500;">Fecha del Cambio</p>
+          <p style="margin: 0; color: #333333; font-size: 16px; font-weight: 600;">${new Date(solicitud.fecha).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        </div>
+        <div>
+          <p style="margin: 0 0 5px 0; color: #6c757d; font-size: 14px; font-weight: 500;">Fecha de Turno Reemplazo</p>
+          <p style="margin: 0; color: #333333; font-size: 16px; font-weight: 600;">${solicitud.fecha_turno_reemplazo ? new Date(solicitud.fecha_turno_reemplazo).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No especificada'}</p>
+        </div>
+        <div>
+          <p style="margin: 0 0 5px 0; color: #6c757d; font-size: 14px; font-weight: 500;">Horario a Cambiar</p>
+          <p style="margin: 0; color: #333333; font-size: 16px; font-weight: 600;">${solicitud.horario_cambiar}</p>
+        </div>
+        <div>
+          <p style="margin: 0 0 5px 0; color: #6c757d; font-size: 14px; font-weight: 500;">Horario de Reemplazo</p>
+          <p style="margin: 0; color: #333333; font-size: 16px; font-weight: 600;">${solicitud.horario_reemplazo}</p>
+        </div>
+        <div>
+          <p style="margin: 0 0 5px 0; color: #6c757d; font-size: 14px; font-weight: 500;">Empleado de Reemplazo</p>
+          <p style="margin: 0; color: #333333; font-size: 16px; font-weight: 600;">${empleadoReemplazo?.nombres || solicitud.nombre_reemplazo || 'No especificado'}</p>
+        </div>
+        <div>
+          <p style="margin: 0 0 5px 0; color: #6c757d; font-size: 14px; font-weight: 500;">Visto Bueno</p>
+          <p style="margin: 0; color: #28a745; font-size: 16px; font-weight: 600;">✅ Aprobado</p>
+        </div>
+      </div>
+    </div>
+    
+    ${solicitud.motivo ? `
+      <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+        <h4 style="color: #0c5460; margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">
+          📝 Motivo del Cambio
+        </h4>
+        <p style="margin: 0; color: #0c5460; font-size: 16px; line-height: 1.6;">
+          ${solicitud.motivo}
+        </p>
+      </div>
+    ` : ''}
+    
+    ${solicitud.afectacion_nomina ? `
+      <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+        <h4 style="color: #856404; margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">
+          💰 Afectación a Nómina
+        </h4>
+        <p style="margin: 0; color: #856404; font-size: 16px; line-height: 1.6;">
+          Esta solicitud tiene afectación a nómina: <strong>${solicitud.afectacion_nomina}</strong>
+        </p>
+      </div>
+    ` : ''}
+    
+    <div style="background-color: #e8f5e8; border-left: 4px solid #4CAF50; padding: 20px; margin-bottom: 30px;">
+      <h4 style="color: #2E7D32; margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">
+        ⚡ Acción Requerida
+      </h4>
+      <p style="margin: 0; color: #333333; font-size: 16px; line-height: 1.6;">
+        Por favor, ingresa al sistema Portal UCI para revisar y aprobar o rechazar esta solicitud de cambio de turno.
+      </p>
+    </div>
+    
+    <div style="text-align: center; padding-top: 20px; border-top: 1px solid #e9ecef;">
+      <p style="color: #6c757d; font-size: 14px; margin: 0;">
+        Saludos,<br>
+        <strong>Portal UCI</strong>
+      </p>
+    </div>
+  `;
+  
+  return getBaseTemplate(content);
+};
+
 // Plantilla para notificación al reemplazo cuando se rechaza por jefe
 const getReemplazoRechazadoTemplate = (empleadoReemplazo, solicitud, empleadoSolicitante, motivo) => {
   const content = `
@@ -2176,6 +2281,7 @@ module.exports = {
   getCambioTurnoVistoBuenoTemplate,
   getCambioTurnoAprobadoTemplate,
   getCambioTurnoRechazadoTemplate,
+  getCambioTurnoNotificarJefeTemplate,
   getVistoBuenoAprobadoTemplate,
   getVistoBuenoRechazadoTemplate,
   getReemplazoAprobadoTemplate,

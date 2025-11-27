@@ -503,9 +503,6 @@ exports.aprobarVistoBueno = async (req, res) => {
         // Importar las plantillas de correo
         const { getVistoBuenoAprobadoTemplate } = require('../../utils/emailTemplates');
         
-        // Buscar al empleado de reemplazo
-        const empleadoReemplazo = await Empleado.findOne({ where: { documento: cambio.cedula_reemplazo } });
-        
         // Generar el HTML del correo con la nueva plantilla
         const emailHTML = getVistoBuenoAprobadoTemplate(cambio.empleado, cambio, empleadoReemplazo);
         
@@ -518,6 +515,14 @@ exports.aprobarVistoBueno = async (req, res) => {
       } catch (mailError) {
         console.error('Error al enviar correo de notificación:', mailError);
       }
+    }
+
+    // Notificar al jefe del departamento que hay una solicitud pendiente de revisión
+    try {
+      await notificarAJefe(cambio, cambio.empleado, empleadoReemplazo);
+    } catch (notificacionError) {
+      console.error('Error al notificar al jefe:', notificacionError);
+      // No fallar la transacción si falla la notificación
     }
 
     await t.commit();
@@ -964,4 +969,126 @@ exports.listarCambiosTurnoPorEmpleado = async (req, res) => {
     console.error('Error en listarCambiosTurnoPorEmpleado:', error);
     res.status(500).json({ error: error.message });
   }
-}; 
+};
+
+// Función para notificar al jefe del departamento cuando hay una solicitud pendiente de revisión
+async function notificarAJefe(solicitud, empleado, empleadoReemplazo) {
+  try {
+    console.log('🔍 DEBUG: Iniciando notificación al gerente del departamento...');
+    console.log('🔍 DEBUG: Empleado:', empleado?.nombres);
+    console.log('🔍 DEBUG: Solicitud ID:', solicitud?.id);
+    console.log('🔍 DEBUG: Empleado ID:', empleado?.id);
+    
+    if (!empleado || !empleado.id) {
+      console.log('❌ DEBUG: Empleado no válido o sin ID');
+      return;
+    }
+    
+    if (!solicitud || !solicitud.id) {
+      console.log('❌ DEBUG: Solicitud no válida o sin ID');
+      return;
+    }
+    
+    const Area = require('../../models/EstructuraEmpresa/Area');
+    const Departamento = require('../../models/EstructuraEmpresa/Departamento');
+    const EmpleadoArea = require('../../models/EstructuraEmpresa/EmpleadosAreas');
+
+    console.log('🔍 DEBUG: Buscando empleado con áreas y departamento...');
+    
+    // Verificar si el empleado tiene área asignada en EmpleadoArea
+    const areasAsignadas = await EmpleadoArea.findAll({
+      where: { empleado_id: empleado.id }
+    });
+    
+    console.log('🔍 DEBUG: Áreas asignadas en EmpleadoArea:', areasAsignadas.length);
+    areasAsignadas.forEach((ea, index) => {
+      console.log(`   ${index + 1}. Area ID: ${ea.area_id}`);
+    });
+    
+    // Obtener el empleado con su área y departamento
+    const empleadoCompleto = await Empleado.findByPk(empleado.id, {
+      include: [
+        {
+          model: Area,
+          as: 'areas',
+          attributes: ['id', 'nombre'],
+          include: [
+            {
+              model: Departamento,
+              as: 'departamento',
+              attributes: ['id', 'nombre', 'gerente_id']
+            }
+          ]
+        }
+      ]
+    });
+
+    console.log('🔍 DEBUG: Empleado encontrado:', empleadoCompleto ? 'SÍ' : 'NO');
+    console.log('🔍 DEBUG: Áreas del empleado:', empleadoCompleto?.areas?.length || 0);
+    
+    if (empleadoCompleto?.areas?.length > 0) {
+      console.log('🔍 DEBUG: Primera área:', empleadoCompleto.areas[0].nombre);
+      console.log('🔍 DEBUG: Departamento de la primera área:', empleadoCompleto.areas[0].departamento?.nombre);
+      console.log('🔍 DEBUG: Gerente ID del departamento:', empleadoCompleto.areas[0].departamento?.gerente_id);
+    }
+
+    if (!empleadoCompleto?.areas?.[0]?.departamento) {
+      console.log('⚠️ DEBUG: Empleado no tiene departamento asignado');
+      return;
+    }
+
+    const departamento = empleadoCompleto.areas[0].departamento;
+    console.log('🔍 DEBUG: Departamento del empleado:', departamento.nombre);
+    console.log('🔍 DEBUG: Gerente ID del departamento:', departamento.gerente_id);
+
+    if (!departamento.gerente_id) {
+      console.log('⚠️ DEBUG: El departamento no tiene gerente asignado');
+      return;
+    }
+
+    console.log('🔍 DEBUG: Buscando gerente con ID:', departamento.gerente_id);
+    
+    // Buscar al gerente del departamento
+    const gerente = await Empleado.findByPk(departamento.gerente_id);
+    
+    console.log('🔍 DEBUG: Gerente encontrado:', gerente ? 'SÍ' : 'NO');
+    
+    if (!gerente) {
+      console.log('⚠️ DEBUG: No se encontró al gerente del departamento');
+      return;
+    }
+
+    console.log('🔍 DEBUG: Gerente encontrado:', gerente.nombres);
+    console.log('🔍 DEBUG: Email del gerente:', gerente.email);
+
+    if (gerente.email) {
+      try {
+        console.log('✅ DEBUG: Enviando notificación al gerente del departamento:', gerente.email);
+        console.log('🔍 DEBUG: Gerente:', gerente.nombres);
+        console.log('🔍 DEBUG: Departamento:', departamento.nombre);
+        
+        const { getCambioTurnoNotificarJefeTemplate } = require('../../utils/emailTemplates');
+        
+        console.log('🔍 DEBUG: Plantilla importada correctamente');
+        
+        const emailHTML = getCambioTurnoNotificarJefeTemplate(gerente, empleado, solicitud, empleadoReemplazo);
+        
+        await sendMail(
+          gerente.email,
+          '⏳ Solicitud de Cambio de Turno Pendiente de Revisión',
+          emailHTML
+        );
+        
+        console.log('✅ Notificación enviada exitosamente al gerente del departamento:', gerente.email);
+      } catch (mailError) {
+        console.error('❌ Error al enviar correo al gerente del departamento:', mailError);
+        console.error('❌ Detalles del error:', mailError.message);
+      }
+    } else {
+      console.log('⚠️ DEBUG: Gerente del departamento no tiene email configurado:', gerente.nombres);
+    }
+  } catch (error) {
+    console.error('❌ Error al notificar al gerente del departamento:', error);
+    console.error('❌ Stack trace:', error.stack);
+  }
+} 
