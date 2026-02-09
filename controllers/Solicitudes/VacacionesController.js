@@ -153,6 +153,7 @@ exports.crearVacaciones = async (req, res) => {
         
         // Generar PDF de la solicitud de vacaciones
         let pdfPath = null;
+        let pdfResult = null;
         try {
             console.log('📄 Generando PDF de solicitud de vacaciones...');
             
@@ -160,10 +161,19 @@ exports.crearVacaciones = async (req, res) => {
             const empleado = await Empleado.findByPk(req.body.empleado_id);
             const jefe = await Empleado.findByPk(empleado.jefe_id);
             
-            const pdfResult = await generarPDFVacaciones(nueva, empleado, jefe);
+            pdfResult = await generarPDFVacaciones(nueva, empleado, jefe);
             pdfPath = pdfResult.filePath;
             
             console.log('✅ PDF generado exitosamente:', pdfResult.fileName);
+            
+            // Si no se subió un archivo manualmente, guardar el PDF generado en archivo_pdf
+            if (!req.file && pdfResult.relativePath) {
+              await nueva.update(
+                { archivo_pdf: pdfResult.relativePath },
+                { transaction: t }
+              );
+              console.log('✅ PDF generado guardado en archivo_pdf:', pdfResult.relativePath);
+            }
         } catch (pdfError) {
             console.error('❌ Error generando PDF:', pdfError);
             // No interrumpir el flujo si falla la generación del PDF
@@ -2322,18 +2332,94 @@ exports.descargarPDF = async (req, res) => {
       return res.status(404).json({ message: 'Solicitud no encontrada' });
     }
     
-    // Verificar que tenga archivo PDF
-    if (!solicitud.archivo_pdf) {
-      return res.status(404).json({ message: 'No hay archivo PDF adjunto a esta solicitud' });
+    // Resolver la ruta completa del archivo desde el directorio del proyecto
+    const pathProyecto = path.resolve(__dirname, '../../');
+    let rutaArchivo = null;
+    
+    // Si hay archivo_pdf en la BD, intentar usarlo primero
+    if (solicitud.archivo_pdf) {
+      let rutaTemporal = solicitud.archivo_pdf;
+      
+      // Normalizar la ruta del archivo
+      if (path.isAbsolute(rutaTemporal)) {
+        rutaArchivo = rutaTemporal;
+        console.log(`📁 Ruta absoluta detectada: ${rutaArchivo}`);
+      } else {
+        // Si es relativa, construir la ruta completa desde el directorio del proyecto
+        rutaTemporal = rutaTemporal.replace(/^\/+/, '').replace(/\\/g, '/');
+        
+        // Si empieza con 'pdfs/', buscar en la carpeta pdfs
+        if (rutaTemporal.startsWith('pdfs/')) {
+          rutaArchivo = path.join(pathProyecto, rutaTemporal);
+        }
+        // Si empieza con 'uploads/', buscar en uploads
+        else if (rutaTemporal.startsWith('uploads/')) {
+          rutaArchivo = path.join(pathProyecto, rutaTemporal);
+        } else {
+          // Intentar en uploads/vacaciones como fallback
+          rutaArchivo = path.join(pathProyecto, 'uploads', 'vacaciones', path.basename(rutaTemporal));
+        }
+      }
+      
+      console.log(`📁 Ruta original en BD: ${solicitud.archivo_pdf}`);
+      console.log(`📁 Buscando archivo PDF en: ${rutaArchivo}`);
+      
+      // Si el archivo existe, usarlo
+      if (fs.existsSync(rutaArchivo)) {
+        console.log(`✅ Archivo encontrado en archivo_pdf: ${rutaArchivo}`);
+      } else {
+        console.log(`⚠️ Archivo no encontrado en archivo_pdf, buscando alternativas...`);
+        rutaArchivo = null;
+      }
     }
     
-    // Verificar que el archivo existe
-    if (!fs.existsSync(solicitud.archivo_pdf)) {
-      return res.status(404).json({ message: 'El archivo PDF no se encuentra en el servidor' });
+    // Si no se encontró archivo en archivo_pdf, buscar PDFs generados automáticamente en pdfs/
+    if (!rutaArchivo) {
+      console.log(`🔍 Buscando PDF generado automáticamente para solicitud ${id}...`);
+      const pdfsDir = path.join(pathProyecto, 'pdfs');
+      
+      if (fs.existsSync(pdfsDir)) {
+        // Buscar archivos que coincidan con el patrón vacaciones_{id}_*.pdf
+        const archivos = fs.readdirSync(pdfsDir);
+        const pdfEncontrado = archivos.find(archivo => 
+          archivo.startsWith(`vacaciones_${id}_`) && archivo.endsWith('.pdf')
+        );
+        
+        if (pdfEncontrado) {
+          rutaArchivo = path.join(pdfsDir, pdfEncontrado);
+          console.log(`✅ PDF generado encontrado: ${rutaArchivo}`);
+          
+          // Actualizar archivo_pdf en la BD para futuras consultas
+          try {
+            await solicitud.update({ archivo_pdf: `pdfs/${pdfEncontrado}` });
+            console.log(`✅ Campo archivo_pdf actualizado en BD`);
+          } catch (updateError) {
+            console.error('⚠️ Error actualizando archivo_pdf en BD:', updateError);
+            // Continuar aunque falle la actualización
+          }
+        }
+      }
     }
+    
+    // Si aún no se encontró archivo, retornar error
+    if (!rutaArchivo || !fs.existsSync(rutaArchivo)) {
+      console.log(`❌ No se encontró archivo PDF para la solicitud ${id}`);
+      return res.status(404).json({ 
+        message: 'No hay archivo PDF disponible para esta solicitud. Es posible que no se haya generado o haya sido eliminado.' 
+      });
+    }
+    
+    console.log(`✅ Archivo encontrado, enviando: ${rutaArchivo}`);
     
     // Enviar el archivo
-    res.download(solicitud.archivo_pdf, `vacaciones-${id}.pdf`);
+    res.download(rutaArchivo, `vacaciones-${id}.pdf`, (err) => {
+      if (err) {
+        console.error('Error al enviar archivo:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Error al descargar el archivo' });
+        }
+      }
+    });
     
   } catch (error) {
     console.error('Error al descargar PDF:', error);
