@@ -200,16 +200,52 @@ async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
     const cmd = commands[i];
     console.log(`  Intento ${i + 1}/${commands.length}: ${cmd}`);
     try {
-      execSync(cmd, { stdio: 'pipe', timeout: 30000 });
+      // Ejecutar el comando y esperar a que termine completamente
+      execSync(cmd, { 
+        stdio: 'pipe', 
+        timeout: 60000, // Aumentar timeout a 60 segundos
+        cwd: tmpDir // Ejecutar desde el directorio de salida
+      });
+      
+      // Esperar un momento para asegurar que el archivo se haya escrito completamente
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       if (fs.existsSync(pdfOut)) {
+        const pdfStats = fs.statSync(pdfOut);
+        
+        // Validar que el PDF sea válido leyendo los primeros bytes
+        const pdfBuffer = fs.readFileSync(pdfOut);
+        const esPDFValido = pdfBuffer.length >= 4 && 
+                           pdfBuffer[0] === 0x25 && 
+                           pdfBuffer[1] === 0x50 && 
+                           pdfBuffer[2] === 0x44 && 
+                           pdfBuffer[3] === 0x46; // %PDF
+        
+        if (pdfStats.size === 0) {
+          console.log(`  ⚠️ PDF generado está vacío (${pdfStats.size} bytes), continuando con siguiente método...`);
+          // Eliminar el archivo vacío
+          try { fs.unlinkSync(pdfOut); } catch (e) {}
+          continue;
+        }
+        
+        if (!esPDFValido) {
+          console.log(`  ⚠️ Archivo generado no parece ser un PDF válido`);
+          console.log(`  ⚠️ Primeros bytes:`, Array.from(pdfBuffer.slice(0, 10)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' '));
+          // Continuar para intentar otro método
+          continue;
+        }
+        
         console.log('✅ PDF generado exitosamente:', pdfOut);
-        console.log('📊 Tamaño del PDF:', fs.statSync(pdfOut).size, 'bytes');
+        console.log('📊 Tamaño del PDF:', pdfStats.size, 'bytes');
+        console.log('✅ PDF válido (verificado por magic numbers)');
         return { fileName: path.basename(pdfOut), filePath: pdfOut };
       } else {
         console.log(`  ⚠️ Comando ejecutado pero PDF no encontrado en: ${pdfOut}`);
       }
     } catch (error) {
       console.log(`  ❌ Error con comando ${i + 1}:`, error.message);
+      if (error.stdout) console.log(`  📤 stdout:`, error.stdout.toString());
+      if (error.stderr) console.log(`  📤 stderr:`, error.stderr.toString());
     }
   }
 
@@ -226,9 +262,19 @@ async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
         timeout: 60000 
       });
       if (fs.existsSync(pdfOut)) {
-        console.log('✅ PDF generado con PowerShell:', pdfOut);
-        console.log('📊 Tamaño del PDF:', fs.statSync(pdfOut).size, 'bytes');
-        return { fileName: path.basename(pdfOut), filePath: pdfOut };
+        const pdfStats = fs.statSync(pdfOut);
+        // Validar que el PDF sea válido
+        const pdfBuffer = fs.readFileSync(pdfOut, { start: 0, end: 4 });
+        const esPDFValido = pdfBuffer[0] === 0x25 && pdfBuffer[1] === 0x50 && pdfBuffer[2] === 0x44 && pdfBuffer[3] === 0x46;
+        
+        if (pdfStats.size > 0 && esPDFValido) {
+          console.log('✅ PDF generado con PowerShell:', pdfOut);
+          console.log('📊 Tamaño del PDF:', pdfStats.size, 'bytes');
+          console.log('✅ PDF válido (verificado por magic numbers)');
+          return { fileName: path.basename(pdfOut), filePath: pdfOut };
+        } else {
+          console.log('⚠️ PDF generado no es válido o está vacío');
+        }
       }
     } else {
       console.log('⚠️ Script PowerShell no encontrado');
@@ -245,8 +291,20 @@ async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
       form.append('file', fs.createReadStream(xlsxOut));
       const resp = await axios.post(converterUrl, form, { headers: form.getHeaders(), responseType: 'arraybuffer', timeout: 60000 });
       if (resp.status === 200 && resp.data) {
-        fs.writeFileSync(pdfOut, Buffer.from(resp.data));
-        return { fileName: path.basename(pdfOut), filePath: pdfOut };
+        const pdfBuffer = Buffer.from(resp.data);
+        fs.writeFileSync(pdfOut, pdfBuffer);
+        
+        // Validar que el PDF sea válido
+        const esPDFValido = pdfBuffer[0] === 0x25 && pdfBuffer[1] === 0x50 && pdfBuffer[2] === 0x44 && pdfBuffer[3] === 0x46;
+        
+        if (pdfBuffer.length > 0 && esPDFValido) {
+          console.log('✅ PDF generado con convertidor HTTP:', pdfOut);
+          console.log('📊 Tamaño del PDF:', pdfBuffer.length, 'bytes');
+          console.log('✅ PDF válido (verificado por magic numbers)');
+          return { fileName: path.basename(pdfOut), filePath: pdfOut };
+        } else {
+          console.log('⚠️ PDF generado no es válido');
+        }
       }
     } catch (e) {
       console.error('❌ Error en convertidor HTTP XLSX->PDF:', e.message);
