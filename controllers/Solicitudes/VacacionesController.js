@@ -2561,6 +2561,7 @@ exports.descargarPDF = async (req, res) => {
     // PRIORIZAR la detección por contenido sobre la extensión
     let nombreArchivo;
     let contentType;
+    let archivoFinal = rutaArchivo; // Inicializar con la ruta original
     
     if (esPDF) {
       // Es un PDF válido por contenido
@@ -2572,106 +2573,80 @@ exports.descargarPDF = async (req, res) => {
       nombreArchivo = `formato_vacaciones_${id}.xlsx`;
       contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
       console.log('✅ Archivo es XLSX válido (detectado por contenido, corrigiendo extensión)');
-    } else if (esPDFPorExtension && !esXLSX) {
-      // Tiene extensión .pdf pero no es PDF válido, y no es XLSX
+      
+      // Si el archivo tiene extensión .pdf pero es XLSX, buscar el XLSX original
+      if (extension === '.pdf') {
+        const xlsxPath = rutaArchivo.replace(/\.pdf$/i, '.xlsx');
+        if (fs.existsSync(xlsxPath)) {
+          console.log('📄 Usando XLSX original en lugar del archivo con extensión incorrecta:', xlsxPath);
+          archivoFinal = xlsxPath;
+          fileBuffer = fs.readFileSync(archivoFinal);
+        }
+      }
+    } else if (extension === '.xlsx') {
+      // Tiene extensión .xlsx
+      nombreArchivo = `formato_vacaciones_${id}.xlsx`;
+      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      console.log('✅ Archivo es XLSX (detectado por extensión)');
+    } else if (extension === '.pdf') {
+      // Tiene extensión .pdf pero no es PDF válido
       // Intentar buscar el XLSX original
       const xlsxPath = rutaArchivo.replace(/\.pdf$/i, '.xlsx');
       if (fs.existsSync(xlsxPath)) {
-        console.log('⚠️ PDF inválido, usando XLSX original:', xlsxPath);
-        rutaArchivo = xlsxPath;
-        fileBuffer = fs.readFileSync(rutaArchivo);
+        console.log('⚠️ Archivo con extensión .pdf no es PDF válido, usando XLSX original:', xlsxPath);
+        archivoFinal = xlsxPath;
+        fileBuffer = fs.readFileSync(archivoFinal);
         nombreArchivo = `formato_vacaciones_${id}.xlsx`;
         contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
       } else {
         // Si no hay XLSX, intentar como PDF de todas formas
         nombreArchivo = `formato_vacaciones_${id}.pdf`;
         contentType = 'application/pdf';
-        console.warn('⚠️ Archivo tiene extensión .pdf pero no es PDF válido, enviando como PDF de todas formas');
+        console.warn('⚠️ Archivo tiene extensión .pdf pero no es PDF válido, enviando como PDF');
       }
-    } else if (esXLSXPorExtension) {
-      // Tiene extensión .xlsx
-      nombreArchivo = `formato_vacaciones_${id}.xlsx`;
-      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      console.log('✅ Archivo es XLSX (detectado por extensión)');
     } else {
-      // Si no se puede determinar, usar extensión o intentar detectar
+      // Si no se puede determinar, usar extensión
       nombreArchivo = `formato_vacaciones_${id}${extension || ''}`;
       contentType = 'application/octet-stream';
       console.warn('⚠️ No se pudo determinar el tipo de archivo, usando extensión:', extension);
     }
     
-    console.log(`📤 Enviando archivo: ${nombreArchivo}`);
+    // Usar el archivo final (puede ser diferente de rutaArchivo si se cambió a XLSX)
+    const rutaAbsolutaFinal = path.resolve(archivoFinal);
+    console.log(`📤 Archivo final a enviar: ${archivoFinal}`);
+    console.log(`📤 Ruta absoluta: ${rutaAbsolutaFinal}`);
+    console.log(`📤 Nombre archivo: ${nombreArchivo}`);
     console.log(`📤 Content-Type: ${contentType}`);
-    console.log(`📤 Ruta completa: ${rutaArchivo}`);
-    console.log(`📊 Tamaño del archivo: ${fileBuffer.length} bytes`);
-    
-    if (fileBuffer.length === 0) {
-      console.error('❌ ERROR: El archivo está vacío');
-      return res.status(500).json({ 
-        error: 'El archivo generado está vacío. Por favor, contacte al administrador.' 
-      });
-    }
-    
-    // Validar que el PDF tenga la estructura correcta
-    if ((esPDFPorExtension || extension === '.pdf') && !esPDF) {
-      console.warn('⚠️ ADVERTENCIA: El archivo tiene extensión .pdf pero no parece ser un PDF válido');
-      console.warn('⚠️ Primeros bytes del archivo:', Array.from(fileBuffer.slice(0, 10)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' '));
-      
-      // Si es un XLSX con extensión .pdf incorrecta, corregirlo
-      if (esXLSX) {
-        console.warn('⚠️ El archivo es realmente un XLSX, corrigiendo Content-Type...');
-        nombreArchivo = `formato_vacaciones_${id}.xlsx`;
-        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      } else {
-        // Si no es ni PDF ni XLSX válido, intentar buscar el XLSX original
-        const xlsxPath = rutaArchivo.replace(/\.pdf$/i, '.xlsx');
-        if (fs.existsSync(xlsxPath)) {
-          console.log('⚠️ PDF inválido encontrado, usando XLSX original:', xlsxPath);
-          rutaArchivo = xlsxPath;
-          nombreArchivo = `formato_vacaciones_${id}.xlsx`;
-          contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-          // Releer el buffer del XLSX
-          fileBuffer = fs.readFileSync(rutaArchivo);
-        }
-      }
-    }
-    
-    // Enviar el archivo usando sendFile con la ruta absoluta
-    const rutaAbsoluta = path.resolve(rutaArchivo);
-    console.log(`📤 Ruta absoluta del archivo: ${rutaAbsoluta}`);
     
     // Verificar nuevamente que el archivo existe antes de enviarlo
-    if (!fs.existsSync(rutaAbsoluta)) {
-      console.error('❌ ERROR: El archivo no existe en la ruta absoluta:', rutaAbsoluta);
+    if (!fs.existsSync(rutaAbsolutaFinal)) {
+      console.error('❌ ERROR: El archivo no existe en la ruta absoluta:', rutaAbsolutaFinal);
       return res.status(500).json({ 
         error: 'El archivo no existe en el servidor' 
       });
     }
     
-    // Leer el archivo completo para asegurar que no esté corrupto
-    const archivoFinal = fs.readFileSync(rutaAbsoluta);
-    if (archivoFinal.length === 0) {
+    // Obtener estadísticas del archivo final
+    const statsFinal = fs.statSync(rutaAbsolutaFinal);
+    if (statsFinal.size === 0) {
       console.error('❌ ERROR: El archivo está vacío');
       return res.status(500).json({ 
         error: 'El archivo está vacío' 
       });
     }
     
-    console.log(`📊 Tamaño final del archivo a enviar: ${archivoFinal.length} bytes`);
+    console.log(`📊 Tamaño final del archivo a enviar: ${statsFinal.size} bytes`);
     
-    // Configurar headers
+    // Configurar headers ANTES de enviar
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
-    res.setHeader('Content-Length', archivoFinal.length);
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(nombreArchivo)}"`);
+    res.setHeader('Content-Length', statsFinal.size);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     
-    // Enviar el archivo usando sendFile (más confiable que download)
-    res.sendFile(rutaAbsoluta, {
-      headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${nombreArchivo}"`
-      }
-    }, (err) => {
+    // Enviar el archivo usando sendFile
+    res.sendFile(rutaAbsolutaFinal, (err) => {
       if (err) {
         console.error('❌ Error al enviar archivo:', err);
         console.error('❌ Stack trace:', err.stack);
