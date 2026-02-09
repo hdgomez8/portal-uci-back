@@ -2524,9 +2524,27 @@ exports.descargarPDF = async (req, res) => {
     console.log(`✅ Archivo encontrado, enviando: ${rutaArchivo}`);
     
     // Verificar el tipo de archivo leyendo los primeros bytes para validar
+    // Esto es CRÍTICO porque el contenido real puede diferir de la extensión
     const fileBuffer = fs.readFileSync(rutaArchivo);
-    const esPDF = fileBuffer[0] === 0x25 && fileBuffer[1] === 0x50 && fileBuffer[2] === 0x44 && fileBuffer[3] === 0x46; // %PDF
-    const esXLSX = fileBuffer[0] === 0x50 && fileBuffer[1] === 0x4B && fileBuffer[2] === 0x03 && fileBuffer[3] === 0x04; // PK (ZIP/XLSX)
+    
+    // Verificar magic numbers (firmas de archivo)
+    const esPDF = fileBuffer.length >= 4 && 
+                  fileBuffer[0] === 0x25 && // %
+                  fileBuffer[1] === 0x50 && // P
+                  fileBuffer[2] === 0x44 && // D
+                  fileBuffer[3] === 0x46;   // F
+    
+    const esXLSX = fileBuffer.length >= 4 && 
+                   fileBuffer[0] === 0x50 && // P
+                   fileBuffer[1] === 0x4B && // K
+                   fileBuffer[2] === 0x03 && 
+                   fileBuffer[3] === 0x04;   // PK (ZIP/XLSX signature)
+    
+    console.log(`🔍 Magic numbers detectados:`, {
+      bytes: Array.from(fileBuffer.slice(0, 4)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' '),
+      esPDF,
+      esXLSX
+    });
     
     // También verificar por extensión como fallback
     const extension = path.extname(rutaArchivo).toLowerCase();
@@ -2540,19 +2558,46 @@ exports.descargarPDF = async (req, res) => {
     console.log(`📄 Por extensión: PDF=${esPDFPorExtension}, XLSX=${esXLSXPorExtension}`);
     
     // Determinar el nombre del archivo y tipo de contenido
+    // PRIORIZAR la detección por contenido sobre la extensión
     let nombreArchivo;
     let contentType;
     
-    if (esPDF || esPDFPorExtension) {
+    if (esPDF) {
+      // Es un PDF válido por contenido
       nombreArchivo = `formato_vacaciones_${id}.pdf`;
       contentType = 'application/pdf';
-    } else if (esXLSX || esXLSXPorExtension) {
+      console.log('✅ Archivo es PDF válido (detectado por contenido)');
+    } else if (esXLSX) {
+      // Es un XLSX válido por contenido (aunque tenga extensión .pdf)
       nombreArchivo = `formato_vacaciones_${id}.xlsx`;
       contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      console.log('✅ Archivo es XLSX válido (detectado por contenido, corrigiendo extensión)');
+    } else if (esPDFPorExtension && !esXLSX) {
+      // Tiene extensión .pdf pero no es PDF válido, y no es XLSX
+      // Intentar buscar el XLSX original
+      const xlsxPath = rutaArchivo.replace(/\.pdf$/i, '.xlsx');
+      if (fs.existsSync(xlsxPath)) {
+        console.log('⚠️ PDF inválido, usando XLSX original:', xlsxPath);
+        rutaArchivo = xlsxPath;
+        fileBuffer = fs.readFileSync(rutaArchivo);
+        nombreArchivo = `formato_vacaciones_${id}.xlsx`;
+        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      } else {
+        // Si no hay XLSX, intentar como PDF de todas formas
+        nombreArchivo = `formato_vacaciones_${id}.pdf`;
+        contentType = 'application/pdf';
+        console.warn('⚠️ Archivo tiene extensión .pdf pero no es PDF válido, enviando como PDF de todas formas');
+      }
+    } else if (esXLSXPorExtension) {
+      // Tiene extensión .xlsx
+      nombreArchivo = `formato_vacaciones_${id}.xlsx`;
+      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      console.log('✅ Archivo es XLSX (detectado por extensión)');
     } else {
-      // Si no se puede determinar, intentar por extensión
+      // Si no se puede determinar, usar extensión o intentar detectar
       nombreArchivo = `formato_vacaciones_${id}${extension || ''}`;
       contentType = 'application/octet-stream';
+      console.warn('⚠️ No se pudo determinar el tipo de archivo, usando extensión:', extension);
     }
     
     console.log(`📤 Enviando archivo: ${nombreArchivo}`);
