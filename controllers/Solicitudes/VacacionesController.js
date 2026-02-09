@@ -1622,6 +1622,11 @@ exports.aprobarPorRRHH = async (req, res) => {
           if (fs.existsSync(pdfPath)) {
             const stats = fs.statSync(pdfPath);
             console.log('✅ Archivo existe y tiene tamaño:', stats.size, 'bytes');
+            
+            // Guardar la ruta en archivo_pdf en la base de datos
+            const relativePath = `pdfs/${path.basename(pdfPath)}`;
+            await solicitud.update({ archivo_pdf: relativePath });
+            console.log('✅ Ruta del formato oficial guardada en BD:', relativePath);
           } else {
             console.error('❌ ERROR: El archivo generado no existe:', pdfPath);
             pdfPath = null;
@@ -2374,100 +2379,86 @@ exports.descargarPDF = async (req, res) => {
     const pdfsDir = path.join(pathProyecto, 'pdfs');
     let rutaArchivo = null;
     
-    // 1. Buscar formato generado desde Excel (el que se envía por correo)
-    // Asegurar que id sea string para la comparación
-    const solicitudId = String(id);
-    console.log(`🔍 Buscando formato oficial desde Excel para solicitud ${solicitudId}...`);
-    console.log(`📁 Directorio pdfs: ${pdfsDir}`);
-    console.log(`📁 Directorio existe: ${fs.existsSync(pdfsDir)}`);
+    // SIEMPRE generar el formato desde Excel con información actualizada del estado
+    // Esto asegura que las firmas reflejen el estado actual de aprobación
+    // Esto asegura que las firmas reflejen el estado actual de aprobación
+    console.log(`📄 Generando formato oficial desde Excel con estado actual...`);
+    console.log(`📊 Estado actual de la solicitud: ${solicitud.estado}`);
     
-    if (fs.existsSync(pdfsDir)) {
-      const archivos = fs.readdirSync(pdfsDir);
-      console.log(`📋 Total de archivos en pdfs: ${archivos.length}`);
+    try {
+      const { generarPDFVacacionesDesdeExcel } = require('../../utils/pdfFromExcel');
       
-      // Buscar TODOS los archivos que coincidan con el patrón vacaciones_{id}_*.pdf o vacaciones_{id}_*.xlsx
-      const patronBusqueda = `vacaciones_${solicitudId}_`;
-      console.log(`🔍 Patrón de búsqueda: ${patronBusqueda}`);
+      // Obtener información del empleado y aprobadores
+      const empleado = await Empleado.findByPk(solicitud.empleado_id);
+      let jefe = null;
+      let administrador = null;
+      let rrhh = null;
       
-      const archivosCoincidentes = archivos.filter(archivo => {
-        const coincide = archivo.startsWith(patronBusqueda) && 
-                        (archivo.endsWith('.pdf') || archivo.endsWith('.xlsx'));
-        if (coincide) {
-          console.log(`  ✅ Archivo encontrado: ${archivo}`);
-        }
-        return coincide;
-      });
-      
-      console.log(`📊 Archivos coincidentes encontrados: ${archivosCoincidentes.length}`);
-      
-      if (archivosCoincidentes.length > 0) {
-        // Si hay múltiples archivos, elegir el más reciente (por timestamp en el nombre o fecha de modificación)
-        let archivoSeleccionado = archivosCoincidentes[0];
-        let fechaMasReciente = fs.statSync(path.join(pdfsDir, archivoSeleccionado)).mtime;
+      // Obtener jefe del área
+      if (empleado) {
+        const EmpleadoArea = require('../../models/EstructuraEmpresa/EmpleadosAreas');
+        const Area = require('../../models/EstructuraEmpresa/Area');
+        const empleadoArea = await EmpleadoArea.findOne({
+          where: { empleado_id: empleado.id },
+          include: [{
+            model: Area,
+            as: 'area',
+            attributes: ['jefe_id']
+          }]
+        });
         
-        for (const archivo of archivosCoincidentes) {
-          const stats = fs.statSync(path.join(pdfsDir, archivo));
-          if (stats.mtime > fechaMasReciente) {
-            fechaMasReciente = stats.mtime;
-            archivoSeleccionado = archivo;
+        if (empleadoArea?.area?.jefe_id) {
+          jefe = await Empleado.findByPk(empleadoArea.area.jefe_id);
+        }
+      }
+      
+      // Obtener información de quien aprobó (si existe)
+      if (solicitud.revisado_por) {
+        const revisor = await Empleado.findByPk(solicitud.revisado_por);
+        if (revisor) {
+          // Determinar si es administrador o RRHH según el estado
+          if (solicitud.estado === 'aprobado_por_admin') {
+            administrador = revisor;
+          } else if (solicitud.estado === 'aprobado') {
+            rrhh = revisor;
           }
         }
-        
-        rutaArchivo = path.join(pdfsDir, archivoSeleccionado);
-        const stats = fs.statSync(rutaArchivo);
-        console.log(`✅ Formato oficial encontrado: ${rutaArchivo}`);
-        console.log(`📊 Tamaño: ${stats.size} bytes`);
-        console.log(`📅 Fecha modificación: ${stats.mtime}`);
-      } else {
-        console.log(`⚠️ No se encontraron archivos con patrón vacaciones_${solicitudId}_*.pdf o .xlsx`);
-        // Mostrar algunos ejemplos de archivos disponibles para debugging
-        const ejemplos = archivos.filter(a => a.startsWith('vacaciones_')).slice(0, 5);
-        if (ejemplos.length > 0) {
-          console.log(`📋 Ejemplos de archivos vacaciones_* encontrados:`, ejemplos);
-        } else {
-          console.log(`📋 Archivos disponibles (primeros 10):`, archivos.slice(0, 10));
-        }
       }
-    } else {
-      console.log(`❌ El directorio pdfs no existe: ${pdfsDir}`);
-    }
-    
-    // 2. Si no existe, generar el formato desde Excel
-    if (!rutaArchivo) {
-      console.log(`📄 Generando formato oficial desde Excel...`);
-      try {
-        const { generarPDFVacacionesDesdeExcel } = require('../../utils/pdfFromExcel');
-        
-        const datos = {
-          id: solicitud.id,
-          ciudad_departamento: solicitud.ciudad_departamento,
-          fecha_solicitud: solicitud.fecha_solicitud,
-          nombres_colaborador: solicitud.nombres_colaborador,
-          cedula_colaborador: solicitud.cedula_colaborador,
-          cargo_colaborador: solicitud.cargo_colaborador,
-          periodo_cumplido_desde: solicitud.periodo_cumplido_desde,
-          periodo_cumplido_hasta: solicitud.periodo_cumplido_hasta,
-          dias_cumplidos: solicitud.dias_cumplidos,
-          periodo_disfrute_desde: solicitud.periodo_disfrute_desde,
-          periodo_disfrute_hasta: solicitud.periodo_disfrute_hasta,
-          dias_disfrute: solicitud.dias_disfrute,
-          actividades_pendientes: solicitud.actividades_pendientes
-        };
-        
-        const docResult = await generarPDFVacacionesDesdeExcel(datos);
-        rutaArchivo = docResult.filePath;
-        console.log(`✅ Formato oficial generado: ${rutaArchivo}`);
-        
-        // Guardar la ruta en archivo_pdf si no existe
-        if (!solicitud.archivo_pdf || !solicitud.archivo_pdf.startsWith('pdfs/')) {
-          const relativePath = `pdfs/${path.basename(rutaArchivo)}`;
-          await solicitud.update({ archivo_pdf: relativePath });
-          console.log(`✅ Ruta guardada en BD: ${relativePath}`);
-        }
-      } catch (pdfError) {
-        console.error('❌ Error generando formato desde Excel:', pdfError);
-        // Continuar para buscar archivo adjunto como fallback
-      }
+      
+      const datos = {
+        id: solicitud.id,
+        estado: solicitud.estado,
+        ciudad_departamento: solicitud.ciudad_departamento,
+        fecha_solicitud: solicitud.fecha_solicitud,
+        nombres_colaborador: solicitud.nombres_colaborador,
+        cedula_colaborador: solicitud.cedula_colaborador,
+        cargo_colaborador: solicitud.cargo_colaborador,
+        periodo_cumplido_desde: solicitud.periodo_cumplido_desde,
+        periodo_cumplido_hasta: solicitud.periodo_cumplido_hasta,
+        dias_cumplidos: solicitud.dias_cumplidos,
+        periodo_disfrute_desde: solicitud.periodo_disfrute_desde,
+        periodo_disfrute_hasta: solicitud.periodo_disfrute_hasta,
+        dias_disfrute: solicitud.dias_disfrute,
+        actividades_pendientes: solicitud.actividades_pendientes,
+        // Información de aprobaciones
+        empleado: empleado,
+        jefe: jefe,
+        administrador: administrador,
+        rrhh: rrhh
+      };
+      
+      const docResult = await generarPDFVacacionesDesdeExcel(datos);
+      rutaArchivo = docResult.filePath;
+      console.log(`✅ Formato oficial generado: ${rutaArchivo}`);
+      
+      // Guardar la ruta en archivo_pdf
+      const relativePath = `pdfs/${path.basename(rutaArchivo)}`;
+      await solicitud.update({ archivo_pdf: relativePath });
+      console.log(`✅ Ruta guardada en BD: ${relativePath}`);
+    } catch (pdfError) {
+      console.error('❌ Error generando formato desde Excel:', pdfError);
+      console.error('❌ Stack trace:', pdfError.stack);
+      // Continuar para buscar archivo adjunto como fallback
     }
     
     // 3. Si aún no hay archivo, buscar archivo adjunto subido por el usuario (fallback)

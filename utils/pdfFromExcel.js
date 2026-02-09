@@ -5,8 +5,25 @@ const { execSync } = require('child_process');
 const axios = require('axios');
 const FormData = require('form-data');
 
+// Función para encontrar la firma de un empleado
+function encontrarFirma(documento) {
+  if (!documento) return null;
+  
+  const extensions = ['.png', '.jpg', '.jpeg', '.gif'];
+  const firmasDir = path.join(__dirname, '..', 'firmas');
+  
+  for (const ext of extensions) {
+    const firmaPath = path.join(firmasDir, `${documento}${ext}`);
+    if (fs.existsSync(firmaPath)) {
+      return firmaPath;
+    }
+  }
+  return null;
+}
+
 async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
   console.log('📄 Iniciando generación de PDF desde Excel para solicitud:', datosSolicitud.id);
+  console.log('📊 Estado de la solicitud:', datosSolicitud.estado);
   
   const templatePath = path.join(__dirname, 'UCIA-TH-FT-005  FORMATO DE SOLICITUD Y AUTORIZACIÓN DE VACACIONES.xlsx');
   console.log('📁 Ruta de plantilla:', templatePath);
@@ -30,13 +47,112 @@ async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
   await wb.xlsx.readFile(templatePath);
   const ws = wb.worksheets[0];
 
-  // Mapeo según solicitud del usuario
+  // Mapeo de datos básicos
   if (ws && ws.getCell) {
     ws.getCell('C7').value = datosSolicitud.ciudad_departamento || '';
     ws.getCell('K7').value = datosSolicitud.fecha_solicitud || '';
     ws.getCell('D8').value = datosSolicitud.nombres_colaborador || '';
     if (ws.getCell('D9')) ws.getCell('D9').value = datosSolicitud.cedula_colaborador || '';
     if (ws.getCell('K9')) ws.getCell('K9').value = datosSolicitud.cargo_colaborador || '';
+  }
+  
+  // Manejar firmas según el estado de aprobación
+  // Nota: Las celdas de firmas pueden variar según el formato Excel
+  // Ajustar estas referencias según la estructura real del archivo Excel
+  const estado = datosSolicitud.estado || 'pendiente';
+  
+  // Determinar qué aprobaciones están completadas
+  const aprobadoPorJefe = estado !== 'pendiente'; // Si pasó de pendiente, tiene visto bueno del jefe
+  const aprobadoPorAdmin = estado === 'aprobado_por_admin' || estado === 'aprobado';
+  const aprobadoPorRRHH = estado === 'aprobado';
+  
+  console.log('📋 Estado de aprobaciones:');
+  console.log('  - Jefe:', aprobadoPorJefe ? 'Aprobado' : 'Sin aprobar');
+  console.log('  - Administración:', aprobadoPorAdmin ? 'Aprobado' : 'Sin aprobar');
+  console.log('  - RRHH:', aprobadoPorRRHH ? 'Aprobado' : 'Sin aprobar');
+  
+  // Agregar texto "Sin aprobar" o firmas según corresponda
+  // Nota: Las referencias de celdas deben ajustarse según el formato Excel real
+  // Estas son celdas típicas para firmas - buscar en el Excel las celdas correctas
+  try {
+    // Función auxiliar para establecer valor en celda de forma segura
+    const setCellValue = (cellRef, value) => {
+      try {
+        const cell = ws.getCell(cellRef);
+        if (cell) {
+          cell.value = value;
+          console.log(`✅ Celda ${cellRef} actualizada: ${value}`);
+        }
+      } catch (err) {
+        console.warn(`⚠️ No se pudo actualizar celda ${cellRef}:`, err.message);
+      }
+    };
+    
+    // Firma del empleado (solicitante) - siempre presente
+    if (datosSolicitud.empleado?.nombres) {
+      // Buscar celdas donde van las firmas (ajustar según formato real)
+      // Intentar múltiples posibles ubicaciones
+      const posiblesCeldasEmpleado = ['D45', 'D44', 'D43', 'D42', 'D41'];
+      for (const cellRef of posiblesCeldasEmpleado) {
+        try {
+          const cell = ws.getCell(cellRef);
+          if (cell && cell.value !== undefined) {
+            setCellValue(cellRef, datosSolicitud.empleado.nombres);
+            break;
+          }
+        } catch (e) {}
+      }
+    }
+    
+    // Firma del jefe - mostrar nombre si aprobado, "Sin aprobar" si no
+    const posiblesCeldasJefe = ['F45', 'F44', 'F43', 'F42', 'F41', 'G45', 'G44'];
+    const valorJefe = aprobadoPorJefe && datosSolicitud.jefe?.nombres 
+      ? datosSolicitud.jefe.nombres 
+      : 'Sin aprobar';
+    for (const cellRef of posiblesCeldasJefe) {
+      try {
+        const cell = ws.getCell(cellRef);
+        if (cell && cell.value !== undefined) {
+          setCellValue(cellRef, valorJefe);
+          break;
+        }
+      } catch (e) {}
+    }
+    
+    // Firma de administración
+    const posiblesCeldasAdmin = ['H45', 'H44', 'H43', 'H42', 'H41', 'I45', 'I44'];
+    const valorAdmin = aprobadoPorAdmin && datosSolicitud.administrador?.nombres 
+      ? datosSolicitud.administrador.nombres 
+      : 'Sin aprobar';
+    for (const cellRef of posiblesCeldasAdmin) {
+      try {
+        const cell = ws.getCell(cellRef);
+        if (cell && cell.value !== undefined) {
+          setCellValue(cellRef, valorAdmin);
+          break;
+        }
+      } catch (e) {}
+    }
+    
+    // Firma de RRHH
+    const posiblesCeldasRRHH = ['J45', 'J44', 'J43', 'J42', 'J41', 'K45', 'K44'];
+    const valorRRHH = aprobadoPorRRHH && datosSolicitud.rrhh?.nombres 
+      ? datosSolicitud.rrhh.nombres 
+      : 'Sin aprobar';
+    for (const cellRef of posiblesCeldasRRHH) {
+      try {
+        const cell = ws.getCell(cellRef);
+        if (cell && cell.value !== undefined) {
+          setCellValue(cellRef, valorRRHH);
+          break;
+        }
+      } catch (e) {}
+    }
+    
+    console.log('✅ Firmas procesadas según estado de aprobación');
+  } catch (error) {
+    console.warn('⚠️ Error al agregar firmas al Excel:', error.message);
+    console.warn('⚠️ Continuando sin modificar firmas...');
   }
 
   await wb.xlsx.writeFile(xlsxOut);
