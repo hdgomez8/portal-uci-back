@@ -2321,7 +2321,7 @@ exports.listarPorEstado = async (req, res) => {
   }
 }; 
 
-// Función para descargar archivo PDF
+// Función para descargar archivo PDF (formato oficial desde Excel)
 exports.descargarPDF = async (req, res) => {
   try {
     const { id } = req.params;
@@ -2332,76 +2332,92 @@ exports.descargarPDF = async (req, res) => {
       return res.status(404).json({ message: 'Solicitud no encontrada' });
     }
     
-    // Resolver la ruta completa del archivo desde el directorio del proyecto
     const pathProyecto = path.resolve(__dirname, '../../');
+    const pdfsDir = path.join(pathProyecto, 'pdfs');
     let rutaArchivo = null;
     
-    // Si hay archivo_pdf en la BD, intentar usarlo primero
-    if (solicitud.archivo_pdf) {
-      let rutaTemporal = solicitud.archivo_pdf;
+    // 1. Buscar formato generado desde Excel (el que se envía por correo)
+    console.log(`🔍 Buscando formato oficial desde Excel para solicitud ${id}...`);
+    if (fs.existsSync(pdfsDir)) {
+      const archivos = fs.readdirSync(pdfsDir);
+      // Buscar archivos que coincidan con el patrón vacaciones_{id}_*.pdf o vacaciones_{id}_*.xlsx
+      const formatoEncontrado = archivos.find(archivo => 
+        archivo.startsWith(`vacaciones_${id}_`) && (archivo.endsWith('.pdf') || archivo.endsWith('.xlsx'))
+      );
       
-      // Normalizar la ruta del archivo
-      if (path.isAbsolute(rutaTemporal)) {
-        rutaArchivo = rutaTemporal;
-        console.log(`📁 Ruta absoluta detectada: ${rutaArchivo}`);
-      } else {
-        // Si es relativa, construir la ruta completa desde el directorio del proyecto
-        rutaTemporal = rutaTemporal.replace(/^\/+/, '').replace(/\\/g, '/');
-        
-        // Si empieza con 'pdfs/', buscar en la carpeta pdfs
-        if (rutaTemporal.startsWith('pdfs/')) {
-          rutaArchivo = path.join(pathProyecto, rutaTemporal);
-        }
-        // Si empieza con 'uploads/', buscar en uploads
-        else if (rutaTemporal.startsWith('uploads/')) {
-          rutaArchivo = path.join(pathProyecto, rutaTemporal);
-        } else {
-          // Intentar en uploads/vacaciones como fallback
-          rutaArchivo = path.join(pathProyecto, 'uploads', 'vacaciones', path.basename(rutaTemporal));
-        }
-      }
-      
-      console.log(`📁 Ruta original en BD: ${solicitud.archivo_pdf}`);
-      console.log(`📁 Buscando archivo PDF en: ${rutaArchivo}`);
-      
-      // Si el archivo existe, usarlo
-      if (fs.existsSync(rutaArchivo)) {
-        console.log(`✅ Archivo encontrado en archivo_pdf: ${rutaArchivo}`);
-      } else {
-        console.log(`⚠️ Archivo no encontrado en archivo_pdf, buscando alternativas...`);
-        rutaArchivo = null;
+      if (formatoEncontrado) {
+        rutaArchivo = path.join(pdfsDir, formatoEncontrado);
+        console.log(`✅ Formato oficial encontrado: ${rutaArchivo}`);
       }
     }
     
-    // Si no se encontró archivo en archivo_pdf, buscar PDFs generados automáticamente en pdfs/
+    // 2. Si no existe, generar el formato desde Excel
     if (!rutaArchivo) {
-      console.log(`🔍 Buscando PDF generado automáticamente para solicitud ${id}...`);
-      const pdfsDir = path.join(pathProyecto, 'pdfs');
-      
-      if (fs.existsSync(pdfsDir)) {
-        // Buscar archivos que coincidan con el patrón vacaciones_{id}_*.pdf
-        const archivos = fs.readdirSync(pdfsDir);
-        const pdfEncontrado = archivos.find(archivo => 
-          archivo.startsWith(`vacaciones_${id}_`) && archivo.endsWith('.pdf')
-        );
+      console.log(`📄 Generando formato oficial desde Excel...`);
+      try {
+        const { generarPDFVacacionesDesdeExcel } = require('../../utils/pdfFromExcel');
         
-        if (pdfEncontrado) {
-          rutaArchivo = path.join(pdfsDir, pdfEncontrado);
-          console.log(`✅ PDF generado encontrado: ${rutaArchivo}`);
+        const datos = {
+          id: solicitud.id,
+          ciudad_departamento: solicitud.ciudad_departamento,
+          fecha_solicitud: solicitud.fecha_solicitud,
+          nombres_colaborador: solicitud.nombres_colaborador,
+          cedula_colaborador: solicitud.cedula_colaborador,
+          cargo_colaborador: solicitud.cargo_colaborador,
+          periodo_cumplido_desde: solicitud.periodo_cumplido_desde,
+          periodo_cumplido_hasta: solicitud.periodo_cumplido_hasta,
+          dias_cumplidos: solicitud.dias_cumplidos,
+          periodo_disfrute_desde: solicitud.periodo_disfrute_desde,
+          periodo_disfrute_hasta: solicitud.periodo_disfrute_hasta,
+          dias_disfrute: solicitud.dias_disfrute,
+          actividades_pendientes: solicitud.actividades_pendientes
+        };
+        
+        const docResult = await generarPDFVacacionesDesdeExcel(datos);
+        rutaArchivo = docResult.filePath;
+        console.log(`✅ Formato oficial generado: ${rutaArchivo}`);
+        
+        // Guardar la ruta en archivo_pdf si no existe
+        if (!solicitud.archivo_pdf || !solicitud.archivo_pdf.startsWith('pdfs/')) {
+          const relativePath = `pdfs/${path.basename(rutaArchivo)}`;
+          await solicitud.update({ archivo_pdf: relativePath });
+          console.log(`✅ Ruta guardada en BD: ${relativePath}`);
+        }
+      } catch (pdfError) {
+        console.error('❌ Error generando formato desde Excel:', pdfError);
+        // Continuar para buscar archivo adjunto como fallback
+      }
+    }
+    
+    // 3. Si aún no hay archivo, buscar archivo adjunto subido por el usuario (fallback)
+    if (!rutaArchivo || !fs.existsSync(rutaArchivo)) {
+      console.log(`🔍 Buscando archivo adjunto como fallback...`);
+      if (solicitud.archivo_pdf) {
+        let rutaTemporal = solicitud.archivo_pdf;
+        
+        if (path.isAbsolute(rutaTemporal)) {
+          rutaArchivo = rutaTemporal;
+        } else {
+          rutaTemporal = rutaTemporal.replace(/^\/+/, '').replace(/\\/g, '/');
           
-          // Actualizar archivo_pdf en la BD para futuras consultas
-          try {
-            await solicitud.update({ archivo_pdf: `pdfs/${pdfEncontrado}` });
-            console.log(`✅ Campo archivo_pdf actualizado en BD`);
-          } catch (updateError) {
-            console.error('⚠️ Error actualizando archivo_pdf en BD:', updateError);
-            // Continuar aunque falle la actualización
+          if (rutaTemporal.startsWith('pdfs/')) {
+            rutaArchivo = path.join(pathProyecto, rutaTemporal);
+          } else if (rutaTemporal.startsWith('uploads/')) {
+            rutaArchivo = path.join(pathProyecto, rutaTemporal);
+          } else {
+            rutaArchivo = path.join(pathProyecto, 'uploads', 'vacaciones', path.basename(rutaTemporal));
           }
         }
+        
+        if (fs.existsSync(rutaArchivo)) {
+          console.log(`✅ Archivo adjunto encontrado: ${rutaArchivo}`);
+        } else {
+          rutaArchivo = null;
+        }
       }
     }
     
-    // Si aún no se encontró archivo, retornar error
+    // 4. Si aún no se encontró archivo, retornar error
     if (!rutaArchivo || !fs.existsSync(rutaArchivo)) {
       console.log(`❌ No se encontró archivo PDF para la solicitud ${id}`);
       return res.status(404).json({ 
@@ -2411,8 +2427,15 @@ exports.descargarPDF = async (req, res) => {
     
     console.log(`✅ Archivo encontrado, enviando: ${rutaArchivo}`);
     
+    // Determinar el nombre del archivo y tipo de contenido
+    const nombreArchivo = `formato_vacaciones_${id}.${rutaArchivo.endsWith('.xlsx') ? 'xlsx' : 'pdf'}`;
+    const contentType = rutaArchivo.endsWith('.xlsx') ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf';
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    
     // Enviar el archivo
-    res.download(rutaArchivo, `vacaciones-${id}.pdf`, (err) => {
+    res.download(rutaArchivo, nombreArchivo, (err) => {
       if (err) {
         console.error('Error al enviar archivo:', err);
         if (!res.headersSent) {
