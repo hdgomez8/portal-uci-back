@@ -2523,39 +2523,31 @@ exports.descargarPDF = async (req, res) => {
     
     console.log(`✅ Archivo encontrado, enviando: ${rutaArchivo}`);
     
-    // Verificar el tipo de archivo leyendo los primeros bytes para validar
-    // Esto es CRÍTICO porque el contenido real puede diferir de la extensión
-    const fileBuffer = fs.readFileSync(rutaArchivo);
-    
-    // Verificar magic numbers (firmas de archivo)
-    const esPDF = fileBuffer.length >= 4 && 
-                  fileBuffer[0] === 0x25 && // %
-                  fileBuffer[1] === 0x50 && // P
-                  fileBuffer[2] === 0x44 && // D
-                  fileBuffer[3] === 0x46;   // F
-    
-    const esXLSX = fileBuffer.length >= 4 && 
-                   fileBuffer[0] === 0x50 && // P
-                   fileBuffer[1] === 0x4B && // K
-                   fileBuffer[2] === 0x03 && 
-                   fileBuffer[3] === 0x04;   // PK (ZIP/XLSX signature)
-    
-    console.log(`🔍 Magic numbers detectados:`, {
-      bytes: Array.from(fileBuffer.slice(0, 4)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' '),
-      esPDF,
-      esXLSX
-    });
-    
-    // También verificar por extensión como fallback
+    // Leer solo los primeros bytes para detectar el tipo real del archivo
+    // Esto es CRÍTICO porque el contenido puede diferir de la extensión
+    let fileBuffer = fs.readFileSync(rutaArchivo);
     const extension = path.extname(rutaArchivo).toLowerCase();
-    const esPDFPorExtension = extension === '.pdf';
-    const esXLSXPorExtension = extension === '.xlsx';
     
-    const tipoArchivo = (esPDF || esPDFPorExtension) ? 'PDF' : (esXLSX || esXLSXPorExtension) ? 'XLSX' : 'DESCONOCIDO';
+    // Verificar magic numbers (firmas de archivo) - leer solo los primeros 4 bytes
+    const primerosBytes = fileBuffer.slice(0, 4);
+    const esPDF = primerosBytes.length >= 4 && 
+                  primerosBytes[0] === 0x25 && // %
+                  primerosBytes[1] === 0x50 && // P
+                  primerosBytes[2] === 0x44 && // D
+                  primerosBytes[3] === 0x46;   // F
     
-    console.log(`📄 Tipo de archivo detectado: ${tipoArchivo}`);
-    console.log(`📄 Por contenido: PDF=${esPDF}, XLSX=${esXLSX}`);
-    console.log(`📄 Por extensión: PDF=${esPDFPorExtension}, XLSX=${esXLSXPorExtension}`);
+    const esXLSX = primerosBytes.length >= 4 && 
+                   primerosBytes[0] === 0x50 && // P
+                   primerosBytes[1] === 0x4B && // K
+                   primerosBytes[2] === 0x03 && 
+                   primerosBytes[3] === 0x04;   // PK (ZIP/XLSX signature)
+    
+    console.log(`🔍 Análisis del archivo:`);
+    console.log(`  📁 Ruta original: ${rutaArchivo}`);
+    console.log(`  📄 Extensión: ${extension}`);
+    console.log(`  🔢 Magic numbers: ${Array.from(primerosBytes).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')}`);
+    console.log(`  ✅ Es PDF (por contenido): ${esPDF}`);
+    console.log(`  ✅ Es XLSX (por contenido): ${esXLSX}`);
     
     // Determinar el nombre del archivo y tipo de contenido
     // PRIORIZAR la detección por contenido sobre la extensión
@@ -2580,29 +2572,44 @@ exports.descargarPDF = async (req, res) => {
         if (fs.existsSync(xlsxPath)) {
           console.log('📄 Usando XLSX original en lugar del archivo con extensión incorrecta:', xlsxPath);
           archivoFinal = xlsxPath;
+          // Releer el buffer del archivo correcto
           fileBuffer = fs.readFileSync(archivoFinal);
+        } else {
+          console.warn('⚠️ Archivo tiene extensión .pdf pero es XLSX por contenido. Se enviará como XLSX.');
         }
       }
     } else if (extension === '.xlsx') {
-      // Tiene extensión .xlsx
-      nombreArchivo = `formato_vacaciones_${id}.xlsx`;
-      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      console.log('✅ Archivo es XLSX (detectado por extensión)');
-    } else if (extension === '.pdf') {
-      // Tiene extensión .pdf pero no es PDF válido
-      // Intentar buscar el XLSX original
-      const xlsxPath = rutaArchivo.replace(/\.pdf$/i, '.xlsx');
-      if (fs.existsSync(xlsxPath)) {
-        console.log('⚠️ Archivo con extensión .pdf no es PDF válido, usando XLSX original:', xlsxPath);
-        archivoFinal = xlsxPath;
-        fileBuffer = fs.readFileSync(archivoFinal);
+      // Tiene extensión .xlsx - verificar que realmente sea XLSX
+      if (!esPDF) {
         nombreArchivo = `formato_vacaciones_${id}.xlsx`;
         contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        console.log('✅ Archivo es XLSX (detectado por extensión)');
       } else {
-        // Si no hay XLSX, intentar como PDF de todas formas
+        // Tiene extensión .xlsx pero es PDF - usar PDF
         nombreArchivo = `formato_vacaciones_${id}.pdf`;
         contentType = 'application/pdf';
-        console.warn('⚠️ Archivo tiene extensión .pdf pero no es PDF válido, enviando como PDF');
+        console.log('⚠️ Archivo tiene extensión .xlsx pero es PDF por contenido. Se enviará como PDF.');
+      }
+    } else if (extension === '.pdf') {
+      // Tiene extensión .pdf pero no es PDF válido
+      if (esXLSX) {
+        // Es XLSX con extensión .pdf incorrecta
+        nombreArchivo = `formato_vacaciones_${id}.xlsx`;
+        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        console.log('⚠️ Archivo tiene extensión .pdf pero es XLSX por contenido. Se enviará como XLSX.');
+        
+        // Intentar buscar el XLSX original
+        const xlsxPath = rutaArchivo.replace(/\.pdf$/i, '.xlsx');
+        if (fs.existsSync(xlsxPath)) {
+          console.log('📄 Usando XLSX original:', xlsxPath);
+          archivoFinal = xlsxPath;
+          fileBuffer = fs.readFileSync(archivoFinal);
+        }
+      } else {
+        // No es ni PDF ni XLSX válido - intentar como PDF de todas formas
+        nombreArchivo = `formato_vacaciones_${id}.pdf`;
+        contentType = 'application/pdf';
+        console.warn('⚠️ Archivo tiene extensión .pdf pero no es PDF válido. Se enviará como PDF.');
       }
     } else {
       // Si no se puede determinar, usar extensión
@@ -2611,12 +2618,24 @@ exports.descargarPDF = async (req, res) => {
       console.warn('⚠️ No se pudo determinar el tipo de archivo, usando extensión:', extension);
     }
     
-    // Usar el archivo final (puede ser diferente de rutaArchivo si se cambió a XLSX)
+    // Validar que el archivo final existe y no está vacío
+    if (fileBuffer.length === 0) {
+      console.error('❌ ERROR: El archivo está vacío');
+      return res.status(500).json({ 
+        error: 'El archivo generado está vacío. Por favor, contacte al administrador.' 
+      });
+    }
+    
+    // Usar el archivo final determinado (puede ser diferente de rutaArchivo si se cambió a XLSX)
     const rutaAbsolutaFinal = path.resolve(archivoFinal);
-    console.log(`📤 Archivo final a enviar: ${archivoFinal}`);
-    console.log(`📤 Ruta absoluta: ${rutaAbsolutaFinal}`);
-    console.log(`📤 Nombre archivo: ${nombreArchivo}`);
-    console.log(`📤 Content-Type: ${contentType}`);
+    
+    console.log(`📤 Resumen de envío:`);
+    console.log(`  📁 Archivo original: ${rutaArchivo}`);
+    console.log(`  📁 Archivo final: ${archivoFinal}`);
+    console.log(`  📁 Ruta absoluta: ${rutaAbsolutaFinal}`);
+    console.log(`  📄 Nombre archivo: ${nombreArchivo}`);
+    console.log(`  📄 Content-Type: ${contentType}`);
+    console.log(`  📊 Tamaño buffer: ${fileBuffer.length} bytes`);
     
     // Verificar nuevamente que el archivo existe antes de enviarlo
     if (!fs.existsSync(rutaAbsolutaFinal)) {
@@ -2635,7 +2654,13 @@ exports.descargarPDF = async (req, res) => {
       });
     }
     
-    console.log(`📊 Tamaño final del archivo a enviar: ${statsFinal.size} bytes`);
+    console.log(`📊 Tamaño final del archivo: ${statsFinal.size} bytes`);
+    
+    // Validar que el tamaño del buffer coincida con el tamaño del archivo
+    if (fileBuffer.length !== statsFinal.size) {
+      console.warn(`⚠️ ADVERTENCIA: El tamaño del buffer (${fileBuffer.length}) no coincide con el tamaño del archivo (${statsFinal.size}). Releyendo archivo...`);
+      fileBuffer = fs.readFileSync(rutaAbsolutaFinal);
+    }
     
     // Configurar headers ANTES de enviar
     res.setHeader('Content-Type', contentType);
@@ -2644,6 +2669,11 @@ exports.descargarPDF = async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
+    
+    console.log(`🚀 Enviando archivo con headers:`);
+    console.log(`  Content-Type: ${contentType}`);
+    console.log(`  Content-Disposition: attachment; filename="${nombreArchivo}"`);
+    console.log(`  Content-Length: ${statsFinal.size}`);
     
     // Enviar el archivo usando sendFile
     res.sendFile(rutaAbsolutaFinal, (err) => {
