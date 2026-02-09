@@ -22,30 +22,42 @@ function encontrarFirma(documento) {
 }
 
 async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
-  console.log('📄 Iniciando generación de PDF desde Excel para solicitud:', datosSolicitud.id);
-  console.log('📊 Estado de la solicitud:', datosSolicitud.estado);
+  let xlsxOut = null;
+  let pdfOut = null;
   
-  const templatePath = path.join(__dirname, 'UCIA-TH-FT-005  FORMATO DE SOLICITUD Y AUTORIZACIÓN DE VACACIONES.xlsx');
-  console.log('📁 Ruta de plantilla:', templatePath);
-  console.log('📁 Plantilla existe:', fs.existsSync(templatePath));
-  
-  const tmpDir = path.join(__dirname, '..', 'pdfs');
-  if (!fs.existsSync(tmpDir)) {
-    console.log('📁 Creando directorio pdfs:', tmpDir);
-    fs.mkdirSync(tmpDir, { recursive: true });
-  }
-  console.log('📁 Directorio de salida:', tmpDir);
+  try {
+    console.log('📄 Iniciando generación de PDF desde Excel para solicitud:', datosSolicitud.id);
+    console.log('📊 Estado de la solicitud:', datosSolicitud.estado);
+    
+    const templatePath = path.join(__dirname, 'UCIA-TH-FT-005  FORMATO DE SOLICITUD Y AUTORIZACIÓN DE VACACIONES.xlsx');
+    console.log('📁 Ruta de plantilla:', templatePath);
+    
+    if (!fs.existsSync(templatePath)) {
+      throw new Error(`La plantilla Excel no existe: ${templatePath}`);
+    }
+    console.log('📁 Plantilla existe: ✅');
+    
+    const tmpDir = path.join(__dirname, '..', 'pdfs');
+    if (!fs.existsSync(tmpDir)) {
+      console.log('📁 Creando directorio pdfs:', tmpDir);
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+    console.log('📁 Directorio de salida:', tmpDir);
 
-  const timestamp = Date.now();
-  const xlsxOut = path.join(tmpDir, `vacaciones_${datosSolicitud.id}_${timestamp}.xlsx`);
-  const pdfOut = path.join(tmpDir, `vacaciones_${datosSolicitud.id}_${timestamp}.pdf`);
-  
-  console.log('📄 Archivo XLSX de salida:', xlsxOut);
-  console.log('📄 Archivo PDF de salida:', pdfOut);
+    const timestamp = Date.now();
+    xlsxOut = path.join(tmpDir, `vacaciones_${datosSolicitud.id}_${timestamp}.xlsx`);
+    pdfOut = path.join(tmpDir, `vacaciones_${datosSolicitud.id}_${timestamp}.pdf`);
+    
+    console.log('📄 Archivo XLSX de salida:', xlsxOut);
+    console.log('📄 Archivo PDF de salida:', pdfOut);
 
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(templatePath);
-  const ws = wb.worksheets[0];
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(templatePath);
+    const ws = wb.worksheets[0];
+    
+    if (!ws) {
+      throw new Error('No se pudo leer la hoja de trabajo del archivo Excel');
+    }
 
   // Mapeo de datos básicos
   if (ws && ws.getCell) {
@@ -155,9 +167,26 @@ async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
     console.warn('⚠️ Continuando sin modificar firmas...');
   }
 
-  await wb.xlsx.writeFile(xlsxOut);
-  console.log('✅ Archivo XLSX generado:', xlsxOut);
-  console.log('📊 Tamaño del XLSX:', fs.statSync(xlsxOut).size, 'bytes');
+  // Guardar el archivo XLSX
+  try {
+    await wb.xlsx.writeFile(xlsxOut);
+    
+    // Verificar que el archivo se guardó correctamente
+    if (!fs.existsSync(xlsxOut)) {
+      throw new Error(`El archivo XLSX no se guardó correctamente: ${xlsxOut}`);
+    }
+    
+    const xlsxStats = fs.statSync(xlsxOut);
+    console.log('✅ Archivo XLSX generado:', xlsxOut);
+    console.log('📊 Tamaño del XLSX:', xlsxStats.size, 'bytes');
+    
+    if (xlsxStats.size === 0) {
+      throw new Error(`El archivo XLSX está vacío: ${xlsxOut}`);
+    }
+  } catch (writeError) {
+    console.error('❌ Error al guardar archivo XLSX:', writeError);
+    throw new Error(`Error al guardar archivo XLSX: ${writeError.message}`);
+  }
 
   // Intentar convertir a PDF con LibreOffice en diferentes comandos
   const commands = [
@@ -224,11 +253,38 @@ async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
     }
   }
 
-  // Si no se pudo convertir, devolver XLSX como fallback
-  console.log('⚠️ No se pudo convertir a PDF, devolviendo XLSX como fallback');
-  console.log('📄 Archivo XLSX disponible:', xlsxOut);
-  console.log('📊 Tamaño del XLSX:', fs.statSync(xlsxOut).size, 'bytes');
-  return { fileName: path.basename(xlsxOut), filePath: xlsxOut };
+    // Si no se pudo convertir, devolver XLSX como fallback
+    // Verificar que el XLSX existe antes de retornarlo
+    if (!fs.existsSync(xlsxOut)) {
+      throw new Error(`El archivo XLSX no existe después de intentar convertir: ${xlsxOut}`);
+    }
+    
+    const xlsxStats = fs.statSync(xlsxOut);
+    if (xlsxStats.size === 0) {
+      throw new Error(`El archivo XLSX está vacío: ${xlsxOut}`);
+    }
+    
+    console.log('⚠️ No se pudo convertir a PDF, devolviendo XLSX como fallback');
+    console.log('📄 Archivo XLSX disponible:', xlsxOut);
+    console.log('📊 Tamaño del XLSX:', xlsxStats.size, 'bytes');
+    return { fileName: path.basename(xlsxOut), filePath: xlsxOut };
+    
+  } catch (error) {
+    console.error('❌ ERROR CRÍTICO en generarPDFVacacionesDesdeExcel:', error);
+    console.error('❌ Stack trace:', error.stack);
+    
+    // Si hay un XLSX generado, intentar retornarlo como último recurso
+    if (xlsxOut && fs.existsSync(xlsxOut)) {
+      const xlsxStats = fs.statSync(xlsxOut);
+      if (xlsxStats.size > 0) {
+        console.log('⚠️ Retornando XLSX como último recurso debido a error');
+        return { fileName: path.basename(xlsxOut), filePath: xlsxOut };
+      }
+    }
+    
+    // Si no hay nada que retornar, lanzar el error
+    throw new Error(`Error al generar formato desde Excel: ${error.message}`);
+  }
 }
 
 module.exports = { generarPDFVacacionesDesdeExcel }; 

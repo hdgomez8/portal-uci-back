@@ -2448,8 +2448,23 @@ exports.descargarPDF = async (req, res) => {
       };
       
       const docResult = await generarPDFVacacionesDesdeExcel(datos);
+      
+      // Verificar que el resultado tenga filePath
+      if (!docResult || !docResult.filePath) {
+        throw new Error('La función generarPDFVacacionesDesdeExcel no retornó un filePath válido');
+      }
+      
       rutaArchivo = docResult.filePath;
       console.log(`✅ Formato oficial generado: ${rutaArchivo}`);
+      
+      // Verificar que el archivo realmente existe
+      if (!fs.existsSync(rutaArchivo)) {
+        console.error(`❌ ERROR: El archivo generado no existe: ${rutaArchivo}`);
+        throw new Error(`El archivo generado no existe: ${rutaArchivo}`);
+      }
+      
+      const stats = fs.statSync(rutaArchivo);
+      console.log(`📊 Archivo generado existe, tamaño: ${stats.size} bytes`);
       
       // Guardar la ruta en archivo_pdf
       const relativePath = `pdfs/${path.basename(rutaArchivo)}`;
@@ -2458,12 +2473,10 @@ exports.descargarPDF = async (req, res) => {
     } catch (pdfError) {
       console.error('❌ Error generando formato desde Excel:', pdfError);
       console.error('❌ Stack trace:', pdfError.stack);
-      // Continuar para buscar archivo adjunto como fallback
-    }
-    
-    // 3. Si aún no hay archivo, buscar archivo adjunto subido por el usuario (fallback)
-    if (!rutaArchivo || !fs.existsSync(rutaArchivo)) {
-      console.log(`🔍 Buscando archivo adjunto como fallback...`);
+      console.error('❌ Mensaje de error:', pdfError.message);
+      
+      // Si hay un error crítico, intentar buscar archivo adjunto como fallback
+      console.log(`🔍 Intentando buscar archivo adjunto como fallback...`);
       if (solicitud.archivo_pdf) {
         let rutaTemporal = solicitud.archivo_pdf;
         
@@ -2482,18 +2495,29 @@ exports.descargarPDF = async (req, res) => {
         }
         
         if (fs.existsSync(rutaArchivo)) {
-          console.log(`✅ Archivo adjunto encontrado: ${rutaArchivo}`);
+          console.log(`✅ Archivo adjunto encontrado como fallback: ${rutaArchivo}`);
         } else {
+          console.log(`❌ Archivo adjunto no encontrado: ${rutaArchivo}`);
           rutaArchivo = null;
         }
       }
+      
+      // Si aún no hay archivo después del fallback, retornar error detallado
+      if (!rutaArchivo || !fs.existsSync(rutaArchivo)) {
+        console.error(`❌ No se pudo generar ni encontrar archivo para la solicitud ${id}`);
+        return res.status(500).json({ 
+          message: 'Error al generar el formato oficial. Por favor, contacte al administrador.',
+          error: pdfError.message,
+          detalles: 'No se pudo generar el PDF desde Excel y no se encontró archivo adjunto'
+        });
+      }
     }
     
-    // 4. Si aún no se encontró archivo, retornar error
+    // Verificación final antes de enviar
     if (!rutaArchivo || !fs.existsSync(rutaArchivo)) {
-      console.log(`❌ No se encontró archivo PDF para la solicitud ${id}`);
-      return res.status(404).json({ 
-        message: 'No hay archivo PDF disponible para esta solicitud. Es posible que no se haya generado o haya sido eliminado.' 
+      console.error(`❌ ERROR CRÍTICO: No hay archivo válido para enviar`);
+      return res.status(500).json({ 
+        message: 'Error al preparar el archivo para descarga. Por favor, contacte al administrador.'
       });
     }
     
