@@ -24,7 +24,8 @@ const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
  */
 const sendMail = async (to, subject, html, attachmentPath) => {
     console.log('📧 Iniciando envío de correo con Gmail API a:', to);
-    console.log('📧 Asunto:', subject);
+    console.log('📧 Asunto original:', subject);
+    console.log('📧 Asunto codificado:', encodeSubject(subject));
     console.log('📧 Adjunto:', attachmentPath || 'Ninguno');
     
     try {
@@ -43,20 +44,38 @@ const sendMail = async (to, subject, html, attachmentPath) => {
             const fs = require('fs');
             const path = require('path');
             
+            // Verificar que el archivo existe
             if (!fs.existsSync(attachmentPath)) {
+                console.error(`❌ El archivo adjunto no existe: ${attachmentPath}`);
                 throw new Error(`El archivo adjunto no existe: ${attachmentPath}`);
             }
             
+            console.log('📎 Leyendo archivo adjunto:', attachmentPath);
             const fileBuffer = fs.readFileSync(attachmentPath);
             const base64Content = fileBuffer.toString('base64');
+            
+            // Detectar el tipo MIME basado en la extensión del archivo
+            const ext = path.extname(attachmentPath).toLowerCase();
+            let mimeType = 'application/pdf'; // Por defecto PDF
+            if (ext === '.xlsx') {
+                mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+            } else if (ext === '.xls') {
+                mimeType = 'application/vnd.ms-excel';
+            } else if (ext === '.pdf') {
+                mimeType = 'application/pdf';
+            }
             
             message.attachments = [{
                 filename: path.basename(attachmentPath),
                 content: base64Content,
-                type: 'application/pdf'
+                type: mimeType
             }];
             
-            console.log('📎 Archivo adjunto verificado:', attachmentPath);
+            console.log('✅ Archivo adjunto verificado:', attachmentPath);
+            console.log('📎 Tipo MIME:', mimeType);
+            console.log('📎 Tamaño del archivo:', fileBuffer.length, 'bytes');
+        } else {
+            console.log('⚠️ No se proporcionó ruta de adjunto');
         }
         
         // Crear el mensaje MIME
@@ -86,6 +105,63 @@ const sendMail = async (to, subject, html, attachmentPath) => {
     }
 };
 
+// Función para codificar el asunto en UTF-8 según RFC 2047
+function encodeSubject(subject) {
+  // Asegurarse de que el subject sea una cadena válida
+  if (!subject || typeof subject !== 'string') {
+    return subject || '';
+  }
+  
+  // Verificar si contiene caracteres no ASCII (incluyendo emojis)
+  // Los emojis son caracteres multi-byte en UTF-8
+  const hasNonASCII = /[^\x00-\x7F]/.test(subject);
+  
+  if (!hasNonASCII) {
+    return subject;
+  }
+  
+  try {
+    // Asegurar que el string esté en UTF-8
+    // Convertir a Buffer explícitamente con UTF-8
+    const utf8Buffer = Buffer.from(subject, 'utf8');
+    
+    // Verificar que la conversión fue correcta
+    const decoded = utf8Buffer.toString('utf8');
+    if (decoded !== subject) {
+      console.warn('⚠️ Advertencia: El asunto puede tener problemas de codificación');
+    }
+    
+    // Usar codificación Base64 para el asunto
+    const encoded = utf8Buffer.toString('base64');
+    
+    // Dividir en líneas de máximo 76 caracteres (incluyendo el prefijo =?UTF-8?B? y sufijo ?=)
+    // El prefijo tiene 10 caracteres, así que podemos usar hasta 66 caracteres de base64 por línea
+    const maxLineLength = 66;
+    
+    if (encoded.length <= maxLineLength) {
+      return `=?UTF-8?B?${encoded}?=`;
+    }
+    
+    // Dividir en múltiples líneas según RFC 2047
+    let result = '';
+    for (let i = 0; i < encoded.length; i += maxLineLength) {
+      const chunk = encoded.substr(i, maxLineLength);
+      if (i === 0) {
+        result += `=?UTF-8?B?${chunk}`;
+      } else {
+        result += `\r\n =?UTF-8?B?${chunk}`;
+      }
+    }
+    result += '?=';
+    
+    return result;
+  } catch (error) {
+    console.error('❌ Error codificando asunto:', error);
+    // Si falla la codificación, devolver el asunto sin codificar (mejor que nada)
+    return subject;
+  }
+}
+
 // Función para crear mensaje MIME
 function createMimeMessage(message) {
   const boundary = 'boundary_' + Math.random().toString(36).substr(2, 9);
@@ -93,7 +169,7 @@ function createMimeMessage(message) {
   
   mimeMessage += `From: ${message.from}\r\n`;
   mimeMessage += `To: ${message.to}\r\n`;
-  mimeMessage += `Subject: ${message.subject}\r\n`;
+  mimeMessage += `Subject: ${encodeSubject(message.subject)}\r\n`;
   mimeMessage += `MIME-Version: 1.0\r\n`;
   mimeMessage += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
   

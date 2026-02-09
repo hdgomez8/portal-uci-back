@@ -6,13 +6,25 @@ const axios = require('axios');
 const FormData = require('form-data');
 
 async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
+  console.log('📄 Iniciando generación de PDF desde Excel para solicitud:', datosSolicitud.id);
+  
   const templatePath = path.join(__dirname, 'UCIA-TH-FT-005  FORMATO DE SOLICITUD Y AUTORIZACIÓN DE VACACIONES.xlsx');
+  console.log('📁 Ruta de plantilla:', templatePath);
+  console.log('📁 Plantilla existe:', fs.existsSync(templatePath));
+  
   const tmpDir = path.join(__dirname, '..', 'pdfs');
-  if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+  if (!fs.existsSync(tmpDir)) {
+    console.log('📁 Creando directorio pdfs:', tmpDir);
+    fs.mkdirSync(tmpDir, { recursive: true });
+  }
+  console.log('📁 Directorio de salida:', tmpDir);
 
   const timestamp = Date.now();
   const xlsxOut = path.join(tmpDir, `vacaciones_${datosSolicitud.id}_${timestamp}.xlsx`);
   const pdfOut = path.join(tmpDir, `vacaciones_${datosSolicitud.id}_${timestamp}.pdf`);
+  
+  console.log('📄 Archivo XLSX de salida:', xlsxOut);
+  console.log('📄 Archivo PDF de salida:', pdfOut);
 
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(templatePath);
@@ -28,6 +40,8 @@ async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
   }
 
   await wb.xlsx.writeFile(xlsxOut);
+  console.log('✅ Archivo XLSX generado:', xlsxOut);
+  console.log('📊 Tamaño del XLSX:', fs.statSync(xlsxOut).size, 'bytes');
 
   // Intentar convertir a PDF con LibreOffice en diferentes comandos
   const commands = [
@@ -36,23 +50,47 @@ async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
     `libreoffice --headless --convert-to pdf "${xlsxOut}" --outdir "${tmpDir}"`
   ];
 
-  for (const cmd of commands) {
+  console.log('🔄 Intentando convertir XLSX a PDF...');
+  for (let i = 0; i < commands.length; i++) {
+    const cmd = commands[i];
+    console.log(`  Intento ${i + 1}/${commands.length}: ${cmd}`);
     try {
-      execSync(cmd, { stdio: 'ignore' });
+      execSync(cmd, { stdio: 'pipe', timeout: 30000 });
       if (fs.existsSync(pdfOut)) {
+        console.log('✅ PDF generado exitosamente:', pdfOut);
+        console.log('📊 Tamaño del PDF:', fs.statSync(pdfOut).size, 'bytes');
         return { fileName: path.basename(pdfOut), filePath: pdfOut };
+      } else {
+        console.log(`  ⚠️ Comando ejecutado pero PDF no encontrado en: ${pdfOut}`);
       }
-    } catch (_) { /* probar siguiente */ }
+    } catch (error) {
+      console.log(`  ❌ Error con comando ${i + 1}:`, error.message);
+    }
   }
 
   // Fallback 2: PowerShell + COM de Excel (requiere Microsoft Office instalado)
+  console.log('🔄 Intentando conversión con PowerShell...');
   try {
     const psScript = path.join(__dirname, 'convert_xlsx_to_pdf.ps1');
-    execSync(`powershell -ExecutionPolicy Bypass -File "${psScript}" -InputXlsx "${xlsxOut}" -OutputPdf "${pdfOut}"`, { stdio: 'ignore' });
-    if (fs.existsSync(pdfOut)) {
-      return { fileName: path.basename(pdfOut), filePath: pdfOut };
+    console.log('📜 Script PowerShell:', psScript);
+    console.log('📜 Script existe:', fs.existsSync(psScript));
+    
+    if (fs.existsSync(psScript)) {
+      execSync(`powershell -ExecutionPolicy Bypass -File "${psScript}" -InputXlsx "${xlsxOut}" -OutputPdf "${pdfOut}"`, { 
+        stdio: 'pipe', 
+        timeout: 60000 
+      });
+      if (fs.existsSync(pdfOut)) {
+        console.log('✅ PDF generado con PowerShell:', pdfOut);
+        console.log('📊 Tamaño del PDF:', fs.statSync(pdfOut).size, 'bytes');
+        return { fileName: path.basename(pdfOut), filePath: pdfOut };
+      }
+    } else {
+      console.log('⚠️ Script PowerShell no encontrado');
     }
-  } catch (_) { /* continuar */ }
+  } catch (error) {
+    console.log('❌ Error con PowerShell:', error.message);
+  }
 
   // Fallback HTTP a convertidor externo (por ejemplo, contenedor con LibreOffice)
   const converterUrl = process.env.XLSX_PDF_CONVERTER_URL;
@@ -71,6 +109,9 @@ async function generarPDFVacacionesDesdeExcel(datosSolicitud) {
   }
 
   // Si no se pudo convertir, devolver XLSX como fallback
+  console.log('⚠️ No se pudo convertir a PDF, devolviendo XLSX como fallback');
+  console.log('📄 Archivo XLSX disponible:', xlsxOut);
+  console.log('📊 Tamaño del XLSX:', fs.statSync(xlsxOut).size, 'bytes');
   return { fileName: path.basename(xlsxOut), filePath: xlsxOut };
 }
 

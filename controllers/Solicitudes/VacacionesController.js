@@ -52,6 +52,24 @@ const uploadPDF = upload.single('archivo_pdf');
 // Función auxiliar para enviar correos con archivos adjuntos
 const enviarCorreoConAdjunto = async (email, asunto, template, empleado, jefe, solicitud, archivoPath = null) => {
   try {
+    console.log('📧 Preparando correo para:', email);
+    console.log('📧 Asunto:', asunto);
+    console.log('📧 Archivo adjunto:', archivoPath || 'NINGUNO');
+    
+    // Verificar que el archivo existe si se proporcionó una ruta
+    if (archivoPath) {
+      const fs = require('fs');
+      if (!fs.existsSync(archivoPath)) {
+        console.error('❌ ERROR: El archivo adjunto no existe:', archivoPath);
+        console.warn('⚠️ Se enviará el correo sin adjunto');
+        archivoPath = null; // Continuar sin adjunto
+      } else {
+        const stats = fs.statSync(archivoPath);
+        console.log('✅ Archivo adjunto verificado:', archivoPath);
+        console.log('📊 Tamaño:', stats.size, 'bytes');
+      }
+    }
+    
     // Determinar qué parámetros pasar al template basado en su firma
     let emailHTML;
     if (template.length === 2) {
@@ -69,9 +87,12 @@ const enviarCorreoConAdjunto = async (email, asunto, template, empleado, jefe, s
     console.log('✅ Correo enviado exitosamente a:', email);
     if (archivoPath) {
       console.log('📎 Con archivo adjunto:', archivoPath);
+    } else {
+      console.log('⚠️ Correo enviado SIN adjunto');
     }
   } catch (mailError) {
     console.error('❌ Error al enviar correo:', mailError);
+    console.error('❌ Stack trace:', mailError.stack);
     // No lanzar el error para no interrumpir el flujo principal
   }
 };
@@ -1595,15 +1616,32 @@ exports.aprobarPorRRHH = async (req, res) => {
           pdfPath = docResult.filePath;
           console.log('✅ Documento generado desde Excel:', docResult.fileName);
           console.log('📁 DEBUG: Ruta del adjunto:', pdfPath);
+          
+          // Verificar que el archivo existe
+          const fs = require('fs');
+          if (fs.existsSync(pdfPath)) {
+            const stats = fs.statSync(pdfPath);
+            console.log('✅ Archivo existe y tiene tamaño:', stats.size, 'bytes');
+          } else {
+            console.error('❌ ERROR: El archivo generado no existe:', pdfPath);
+            pdfPath = null;
+          }
         } catch (pdfError) {
           console.error('❌ Error generando documento desde Excel:', pdfError);
+          console.error('❌ Stack trace:', pdfError.stack);
+          pdfPath = null; // Asegurar que sea null si hay error
           // Continuar sin adjunto si falla la generación
         }
         
         // Enviar correo con PDF adjunto
-        console.log('📧 DEBUG: Enviando correo con PDF...');
+        console.log('📧 DEBUG: Enviando correo...');
         console.log('📧 DEBUG: Email:', empleado.email);
-        console.log('📧 DEBUG: PDF Path:', pdfPath);
+        console.log('📧 DEBUG: PDF Path:', pdfPath || 'NINGUNO (se enviará sin adjunto)');
+        
+        // Solo enviar si tenemos un archivo válido
+        if (!pdfPath) {
+          console.warn('⚠️ ADVERTENCIA: No se generó el archivo PDF, se enviará correo sin adjunto');
+        }
         
         await enviarCorreoConAdjunto(
           empleado.email,
@@ -2337,18 +2375,61 @@ exports.descargarPDF = async (req, res) => {
     let rutaArchivo = null;
     
     // 1. Buscar formato generado desde Excel (el que se envía por correo)
-    console.log(`🔍 Buscando formato oficial desde Excel para solicitud ${id}...`);
+    // Asegurar que id sea string para la comparación
+    const solicitudId = String(id);
+    console.log(`🔍 Buscando formato oficial desde Excel para solicitud ${solicitudId}...`);
+    console.log(`📁 Directorio pdfs: ${pdfsDir}`);
+    console.log(`📁 Directorio existe: ${fs.existsSync(pdfsDir)}`);
+    
     if (fs.existsSync(pdfsDir)) {
       const archivos = fs.readdirSync(pdfsDir);
-      // Buscar archivos que coincidan con el patrón vacaciones_{id}_*.pdf o vacaciones_{id}_*.xlsx
-      const formatoEncontrado = archivos.find(archivo => 
-        archivo.startsWith(`vacaciones_${id}_`) && (archivo.endsWith('.pdf') || archivo.endsWith('.xlsx'))
-      );
+      console.log(`📋 Total de archivos en pdfs: ${archivos.length}`);
       
-      if (formatoEncontrado) {
-        rutaArchivo = path.join(pdfsDir, formatoEncontrado);
+      // Buscar TODOS los archivos que coincidan con el patrón vacaciones_{id}_*.pdf o vacaciones_{id}_*.xlsx
+      const patronBusqueda = `vacaciones_${solicitudId}_`;
+      console.log(`🔍 Patrón de búsqueda: ${patronBusqueda}`);
+      
+      const archivosCoincidentes = archivos.filter(archivo => {
+        const coincide = archivo.startsWith(patronBusqueda) && 
+                        (archivo.endsWith('.pdf') || archivo.endsWith('.xlsx'));
+        if (coincide) {
+          console.log(`  ✅ Archivo encontrado: ${archivo}`);
+        }
+        return coincide;
+      });
+      
+      console.log(`📊 Archivos coincidentes encontrados: ${archivosCoincidentes.length}`);
+      
+      if (archivosCoincidentes.length > 0) {
+        // Si hay múltiples archivos, elegir el más reciente (por timestamp en el nombre o fecha de modificación)
+        let archivoSeleccionado = archivosCoincidentes[0];
+        let fechaMasReciente = fs.statSync(path.join(pdfsDir, archivoSeleccionado)).mtime;
+        
+        for (const archivo of archivosCoincidentes) {
+          const stats = fs.statSync(path.join(pdfsDir, archivo));
+          if (stats.mtime > fechaMasReciente) {
+            fechaMasReciente = stats.mtime;
+            archivoSeleccionado = archivo;
+          }
+        }
+        
+        rutaArchivo = path.join(pdfsDir, archivoSeleccionado);
+        const stats = fs.statSync(rutaArchivo);
         console.log(`✅ Formato oficial encontrado: ${rutaArchivo}`);
+        console.log(`📊 Tamaño: ${stats.size} bytes`);
+        console.log(`📅 Fecha modificación: ${stats.mtime}`);
+      } else {
+        console.log(`⚠️ No se encontraron archivos con patrón vacaciones_${solicitudId}_*.pdf o .xlsx`);
+        // Mostrar algunos ejemplos de archivos disponibles para debugging
+        const ejemplos = archivos.filter(a => a.startsWith('vacaciones_')).slice(0, 5);
+        if (ejemplos.length > 0) {
+          console.log(`📋 Ejemplos de archivos vacaciones_* encontrados:`, ejemplos);
+        } else {
+          console.log(`📋 Archivos disponibles (primeros 10):`, archivos.slice(0, 10));
+        }
       }
+    } else {
+      console.log(`❌ El directorio pdfs no existe: ${pdfsDir}`);
     }
     
     // 2. Si no existe, generar el formato desde Excel
